@@ -1,7 +1,7 @@
 @echo off
-echo Building ZenSort with CGO support for GUI...
+echo Building ZenSort with GUI support...
 set CGO_ENABLED=1
-go build -o zensort.exe main.go
+go build -ldflags="-H windowsgui" -o zensort.exe main.go
 
 if %ERRORLEVEL% NEQ 0 (
     echo.
