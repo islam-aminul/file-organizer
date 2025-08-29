@@ -32,6 +32,8 @@ type GUI struct {
 	ctx            context.Context
 	cancel         context.CancelFunc
 	progressChan   chan core.ProgressUpdate
+	logBuffer      []string
+	maxLogLines    int
 }
 
 // Launch starts the GUI application
@@ -51,8 +53,10 @@ func NewGUI() *GUI {
 	w.CenterOnScreen()
 	
 	return &GUI{
-		app:    a,
-		window: w,
+		app:         a,
+		window:      w,
+		logBuffer:   make([]string, 0),
+		maxLogLines: 500, // Limit log to 500 lines for performance
 	}
 }
 
@@ -182,11 +186,15 @@ func (g *GUI) startProcessing() {
 	// Create progress channel
 	g.progressChan = make(chan core.ProgressUpdate, 100)
 	
-	// Update UI state
+	// Update UI state - disable all input fields during processing
 	g.startButton.Disable()
 	g.stopButton.Enable()
+	g.sourceEntry.Disable()
+	g.destEntry.Disable()
+	g.configEntry.Disable()
 	g.progressBar.SetValue(0)
 	g.statusLabel.SetText("Initializing...")
+	g.logBuffer = make([]string, 0) // Clear log buffer
 	g.logText.SetText("")
 	
 	// Start progress monitoring
@@ -197,6 +205,9 @@ func (g *GUI) startProcessing() {
 		defer func() {
 			g.startButton.Enable()
 			g.stopButton.Disable()
+			g.sourceEntry.Enable()
+			g.destEntry.Enable()
+			g.configEntry.Enable()
 			close(g.progressChan)
 		}()
 		
@@ -254,8 +265,8 @@ func (g *GUI) monitorProgress() {
 		
 		g.statusLabel.SetText(statusText)
 		
-		// Log current file
-		if update.CurrentFile != "" {
+		// Log current file (throttled to reduce UI updates)
+		if update.CurrentFile != "" && update.ProcessedFiles%10 == 0 {
 			g.logMessage(fmt.Sprintf("Processing: %s", filepath.Base(update.CurrentFile)))
 		}
 		
@@ -267,18 +278,46 @@ func (g *GUI) monitorProgress() {
 			if update.ErrorCount > 0 {
 				g.logMessage(fmt.Sprintf("⚠ %d errors occurred. Check logs for details.", update.ErrorCount))
 			}
+			
+			// Force final log display update
+			g.updateLogDisplay()
 		}
 	}
 }
 
-// logMessage adds a message to the log text area
+// logMessage adds a message to the log text area with buffering for performance
 func (g *GUI) logMessage(message string) {
 	timestamp := time.Now().Format("15:04:05")
-	logEntry := fmt.Sprintf("[%s] %s\n", timestamp, message)
+	logEntry := fmt.Sprintf("[%s] %s", timestamp, message)
 	
-	// Append to existing text
-	currentText := g.logText.Text
-	g.logText.SetText(currentText + logEntry)
+	// Add to buffer
+	g.logBuffer = append(g.logBuffer, logEntry)
+	
+	// Trim buffer if it exceeds max lines
+	if len(g.logBuffer) > g.maxLogLines {
+		g.logBuffer = g.logBuffer[len(g.logBuffer)-g.maxLogLines:]
+	}
+	
+	// Update UI with buffered content (less frequent updates for better performance)
+	if len(g.logBuffer)%5 == 0 || len(g.logBuffer) <= 10 {
+		g.updateLogDisplay()
+	}
+}
+
+// updateLogDisplay refreshes the log text widget with current buffer
+func (g *GUI) updateLogDisplay() {
+	if len(g.logBuffer) == 0 {
+		g.logText.SetText("")
+		return
+	}
+	
+	// Join all log entries
+	logContent := ""
+	for _, entry := range g.logBuffer {
+		logContent += entry + "\n"
+	}
+	
+	g.logText.SetText(logContent)
 	
 	// Auto-scroll to bottom
 	g.logText.CursorRow = len(g.logText.Text)

@@ -19,8 +19,9 @@ type Config struct {
 	} `json:"directories"`
 	
 	ImageDirs struct {
-		Originals string `json:"originals"`
-		Exports   string `json:"exports"`
+		Originals        string `json:"originals"`
+		Exports          string `json:"exports"`
+		NoExifYearFolder string `json:"no_exif_year_folder"`
 	} `json:"image_dirs"`
 	
 	AudioCategories map[string]struct {
@@ -58,6 +59,7 @@ func DefaultConfig() *Config {
 	// Default image subdirectories
 	config.ImageDirs.Originals = "Originals"
 	config.ImageDirs.Exports = "Exports"
+	config.ImageDirs.NoExifYearFolder = "0000"
 	
 	// Default audio categories
 	config.AudioCategories = make(map[string]struct {
@@ -97,8 +99,8 @@ func DefaultConfig() *Config {
 	}
 	
 	// Default skip patterns
-	config.SkipFiles.Extensions = []string{".tmp", ".temp", ".log", ".cache"}
-	config.SkipFiles.Patterns = []string{"~*", ".DS_Store", "Thumbs.db"}
+	config.SkipFiles.Extensions = []string{".tmp", ".temp", ".log", ".cache", ".thumb"}
+	config.SkipFiles.Patterns = []string{"~*", ".DS_Store", "Thumbs.db", "*.thumb", "*.thumb[0-9]*"}
 	config.SkipFiles.Directories = []string{".git", ".svn", "node_modules"}
 	
 	// Default processing settings

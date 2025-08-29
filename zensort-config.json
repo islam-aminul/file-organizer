@@ -9,7 +9,8 @@
   },
   "image_dirs": {
     "originals": "Originals",
-    "exports": "Exports"
+    "exports": "Exports",
+    "no_exif_year_folder": "0000"
   },
   "audio_categories": {
     "songs": {
@@ -33,12 +34,15 @@
       ".tmp",
       ".temp",
       ".log",
-      ".cache"
+      ".cache",
+      ".thumb"
     ],
     "patterns": [
       "~*",
       ".DS_Store",
-      "Thumbs.db"
+      "Thumbs.db",
+      "*.thumb",
+      "*.thumb[0-9]"
     ],
     "directories": [
       ".git",

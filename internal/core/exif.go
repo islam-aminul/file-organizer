@@ -95,6 +95,14 @@ func GetImageDestinationPath(basePath, fileName string, exifData *EXIFData, conf
 			strings.TrimSuffix(fileName, filepath.Ext(fileName)))
 		return filepath.Join(basePath, config.Directories.Images, subDir, year, exportName)
 	}
+	
+	// For exports without EXIF date: use configured no-EXIF year folder
+	if isExport {
+		exportName := fmt.Sprintf("%s - %s -- %s.jpg", 
+			exifData.Make, exifData.Model, 
+			strings.TrimSuffix(fileName, filepath.Ext(fileName)))
+		return filepath.Join(basePath, config.Directories.Images, subDir, config.ImageDirs.NoExifYearFolder, exportName)
+	}
 
 	// For originals: Images/Originals/Make - Model/Year/filename
 	if exifData.HasDateTime {
@@ -103,9 +111,9 @@ func GetImageDestinationPath(basePath, fileName string, exifData *EXIFData, conf
 		return filepath.Join(basePath, config.Directories.Images, subDir, cameraDir, year, fileName)
 	}
 
-	// Fallback: use camera info but no date
+	// Fallback: use camera info but no date - use configured no-EXIF year folder
 	cameraDir := fmt.Sprintf("%s - %s", exifData.Make, exifData.Model)
-	return filepath.Join(basePath, config.Directories.Images, subDir, cameraDir, "Unknown Date", fileName)
+	return filepath.Join(basePath, config.Directories.Images, subDir, cameraDir, config.ImageDirs.NoExifYearFolder, fileName)
 }
 
 // IsImageFile checks if a file is an image based on extension

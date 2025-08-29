@@ -2,6 +2,7 @@ package core
 
 import (
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/gabriel-vasile/mimetype"
@@ -138,6 +139,18 @@ func (d *FileTypeDetector) ShouldSkipFile(filePath string, skipExtensions []stri
 	for _, pattern := range skipPatterns {
 		if matched, _ := filepath.Match(pattern, filename); matched {
 			return true
+		}
+	}
+	
+	// Special check for .thumbN extensions (where N is a number)
+	if strings.HasSuffix(ext, ".thumb") {
+		return true
+	}
+	// Check for .thumb followed by numbers (e.g., .thumb1, .thumb2, etc.)
+	if strings.Contains(ext, ".thumb") && len(ext) > 6 {
+		suffix := ext[6:] // Get part after ".thumb"
+		if _, err := strconv.Atoi(suffix); err == nil {
+			return true // It's a number, so skip this file
 		}
 	}
 	
