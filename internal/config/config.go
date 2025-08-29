@@ -23,6 +23,12 @@ type Config struct {
 		Exports   string `json:"exports"`
 	} `json:"image_dirs"`
 	
+	AudioCategories map[string]struct {
+		FolderName string   `json:"folder_name"`
+		Extensions []string `json:"extensions"`
+		Patterns   []string `json:"patterns"`
+	} `json:"audio_categories"`
+	
 	SkipFiles struct {
 		Extensions []string `json:"extensions"`
 		Patterns   []string `json:"patterns"`
@@ -52,6 +58,43 @@ func DefaultConfig() *Config {
 	// Default image subdirectories
 	config.ImageDirs.Originals = "Originals"
 	config.ImageDirs.Exports = "Exports"
+	
+	// Default audio categories
+	config.AudioCategories = make(map[string]struct {
+		FolderName string   `json:"folder_name"`
+		Extensions []string `json:"extensions"`
+		Patterns   []string `json:"patterns"`
+	})
+	
+	config.AudioCategories["songs"] = struct {
+		FolderName string   `json:"folder_name"`
+		Extensions []string `json:"extensions"`
+		Patterns   []string `json:"patterns"`
+	}{
+		FolderName: "Songs",
+		Extensions: []string{".mp3", ".flac", ".wav", ".aac", ".ogg", ".m4a", ".wma"},
+		Patterns:   []string{},
+	}
+	
+	config.AudioCategories["voice_recordings"] = struct {
+		FolderName string   `json:"folder_name"`
+		Extensions []string `json:"extensions"`
+		Patterns   []string `json:"patterns"`
+	}{
+		FolderName: "Voice Recordings",
+		Extensions: []string{".m4a", ".wav", ".aac", ".3gp"},
+		Patterns:   []string{"voice", "memo", "note", "recording", "_rec"},
+	}
+	
+	config.AudioCategories["call_recordings"] = struct {
+		FolderName string   `json:"folder_name"`
+		Extensions []string `json:"extensions"`
+		Patterns   []string `json:"patterns"`
+	}{
+		FolderName: "Call Recordings",
+		Extensions: []string{".m4a", ".wav", ".aac", ".3gp", ".amr"},
+		Patterns:   []string{"call", "_call", "phone", "tel", "+", "recording"},
+	}
 	
 	// Default skip patterns
 	config.SkipFiles.Extensions = []string{".tmp", ".temp", ".log", ".cache"}

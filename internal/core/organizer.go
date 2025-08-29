@@ -176,21 +176,52 @@ func (fo *FileOrganizer) extractYear(modTime time.Time) string {
 	return fmt.Sprintf("%04d", modTime.Year())
 }
 
-// categorizeAudio categorizes audio files based on filename patterns
+// categorizeAudio categorizes audio files based on configurable patterns and extensions
 func (fo *FileOrganizer) categorizeAudio(filename string) string {
 	lowerName := strings.ToLower(filename)
+	ext := strings.ToLower(filepath.Ext(filename))
 	
-	// Check for call recordings
-	if strings.Contains(lowerName, "call") || strings.Contains(lowerName, "_rec") || strings.Contains(lowerName, "recording") {
-		return "Call Recordings"
+	// Check each audio category from configuration
+	for _, category := range fo.config.AudioCategories {
+		// Check if extension matches
+		for _, configExt := range category.Extensions {
+			if ext == strings.ToLower(configExt) {
+				// Extension matches, now check patterns
+				if len(category.Patterns) == 0 {
+					// No patterns specified, match by extension only
+					return category.FolderName
+				}
+				
+				// Check if filename matches any pattern
+				for _, pattern := range category.Patterns {
+					if strings.Contains(lowerName, strings.ToLower(pattern)) {
+						return category.FolderName
+					}
+				}
+			}
+		}
 	}
 	
-	// Check for voice recordings
-	if strings.Contains(lowerName, "voice") || strings.Contains(lowerName, "memo") || strings.Contains(lowerName, "note") {
-		return "Voice Recordings"
+	// Fallback: check if any category has matching patterns regardless of extension
+	for _, category := range fo.config.AudioCategories {
+		for _, pattern := range category.Patterns {
+			if strings.Contains(lowerName, strings.ToLower(pattern)) {
+				return category.FolderName
+			}
+		}
 	}
 	
-	// Default to songs
+	// Default fallback - try to find "songs" category or use first available
+	if songsCategory, exists := fo.config.AudioCategories["songs"]; exists {
+		return songsCategory.FolderName
+	}
+	
+	// If no songs category, use first available category
+	for _, category := range fo.config.AudioCategories {
+		return category.FolderName
+	}
+	
+	// Ultimate fallback
 	return "Songs"
 }
 

@@ -11,6 +11,23 @@
     "originals": "Originals",
     "exports": "Exports"
   },
+  "audio_categories": {
+    "songs": {
+      "folder_name": "Songs",
+      "extensions": [".mp3", ".flac", ".wav", ".aac", ".ogg", ".m4a", ".wma"],
+      "patterns": []
+    },
+    "voice_recordings": {
+      "folder_name": "Voice Recordings",
+      "extensions": [".m4a", ".wav", ".aac", ".3gp"],
+      "patterns": ["voice", "memo", "note", "recording", "_rec"]
+    },
+    "call_recordings": {
+      "folder_name": "Call Recordings",
+      "extensions": [".m4a", ".wav", ".aac", ".3gp", ".amr"],
+      "patterns": ["call", "_call", "phone", "tel", "+", "recording"]
+    }
+  },
   "skip_files": {
     "extensions": [
       ".tmp",
