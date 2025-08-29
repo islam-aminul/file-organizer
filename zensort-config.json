@@ -1,0 +1,38 @@
+{
+  "directories": {
+    "images": "Images",
+    "videos": "Videos",
+    "audios": "Audios",
+    "documents": "Documents",
+    "unknown": "Unknown",
+    "hidden": "Hidden"
+  },
+  "image_dirs": {
+    "originals": "Originals",
+    "exports": "Exports"
+  },
+  "skip_files": {
+    "extensions": [
+      ".tmp",
+      ".temp",
+      ".log",
+      ".cache"
+    ],
+    "patterns": [
+      "~*",
+      ".DS_Store",
+      "Thumbs.db"
+    ],
+    "directories": [
+      ".git",
+      ".svn",
+      "node_modules"
+    ]
+  },
+  "processing": {
+    "max_image_width": 3840,
+    "max_image_height": 2160,
+    "buffer_size": 1048576,
+    "hash_chunk_size": 65536
+  }
+}
