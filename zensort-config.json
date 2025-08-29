@@ -42,7 +42,7 @@
       ".DS_Store",
       "Thumbs.db",
       "*.thumb",
-      "*.thumb[0-9]"
+      "*.thumb[0-9]*"
     ],
     "directories": [
       ".git",
