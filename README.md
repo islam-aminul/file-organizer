@@ -13,7 +13,7 @@ ZenSort is a powerful, cross-platform file organization application built in Go 
 
 ### File Organization
 - **Hybrid File Detection**: Fast extension-based detection with MIME type fallback
-- **Deduplication**: SQLite database prevents duplicate files using SHA256 hashing
+- **Deduplication**: JSON/SQLite database prevents duplicate files using SHA256 hashing
 - **Conflict Resolution**: Automatic file renaming with " -- n" suffix for naming conflicts
 - **Category-Based Organization**: Images, Videos, Audios, Documents, Unknown files
 - **Hidden File Handling**: Dedicated subdirectories for hidden files
@@ -21,9 +21,9 @@ ZenSort is a powerful, cross-platform file organization application built in Go 
 ### Advanced Features
 - **Configurable Everything**: JSON configuration for all directory names and settings
 - **Skip Patterns**: Ignore files by extensions, patterns, or directory paths
-- **Detailed Logging**: Comprehensive error and operation logs in destination directory
-- **Status Reports**: JSON and human-readable reports with statistics and performance metrics
-- **EXIF Processing**: Image organization based on camera make, model, and date
+- **Detailed Logging**: Comprehensive error and operation logs in `zensort-logs/` directory
+- **Status Reports**: JSON and TXT reports with statistics stored in `zensort-logs/` folder
+- **EXIF Processing**: Image organization based on camera make, model, and date with time stamps
 
 ## Installation
 
@@ -32,6 +32,25 @@ ZenSort is a powerful, cross-platform file organization application built in Go 
 - CGO enabled (for SQLite support)
 
 ### Build from Source
+
+#### Windows
+```powershell
+# Clone the repository
+git clone <repository-url>
+cd file-organizer
+
+# Install dependencies
+go mod tidy
+
+# Build with GUI support (requires C compiler)
+.\build.bat
+
+# Manual build
+set CGO_ENABLED=1
+go build -o zensort.exe main.go
+```
+
+#### macOS
 ```bash
 # Clone the repository
 git clone <repository-url>
@@ -40,18 +59,52 @@ cd file-organizer
 # Install dependencies
 go mod tidy
 
-# Build for current platform
-go build -o zensort main.go
+# Install Xcode Command Line Tools (for CGO)
+xcode-select --install
 
-# Cross-compile for different platforms
-# Windows
-GOOS=windows GOARCH=amd64 go build -o zensort.exe main.go
+# Build with GUI support
+chmod +x build.sh
+./build.sh
 
-# macOS
-GOOS=darwin GOARCH=amd64 go build -o zensort-mac main.go
+# Manual build
+CGO_ENABLED=1 go build -o zensort main.go
+```
 
-# Linux
-GOOS=linux GOARCH=amd64 go build -o zensort-linux main.go
+#### Linux
+```bash
+# Clone the repository
+git clone <repository-url>
+cd file-organizer
+
+# Install dependencies
+go mod tidy
+
+# Install build essentials (Ubuntu/Debian)
+sudo apt update
+sudo apt install build-essential pkg-config libgl1-mesa-dev xorg-dev
+
+# Install build essentials (CentOS/RHEL/Fedora)
+sudo yum groupinstall "Development Tools"
+sudo yum install libX11-devel libXcursor-devel libXrandr-devel libXinerama-devel libXi-devel libGL-devel
+
+# Build with GUI support
+chmod +x build.sh
+./build.sh
+
+# Manual build
+CGO_ENABLED=1 go build -o zensort main.go
+```
+
+#### Cross-compilation
+```bash
+# Windows from Unix
+GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc go build -o zensort.exe main.go
+
+# macOS from Linux (requires osxcross)
+GOOS=darwin GOARCH=amd64 CGO_ENABLED=1 go build -o zensort-mac main.go
+
+# Linux from macOS
+GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build -o zensort-linux main.go
 ```
 
 ## Usage
@@ -60,9 +113,6 @@ GOOS=linux GOARCH=amd64 go build -o zensort-linux main.go
 ```bash
 # Launch GUI (default behavior)
 ./zensort
-
-# Explicitly launch GUI
-./zensort -gui
 ```
 
 ### CLI Mode
@@ -70,8 +120,31 @@ GOOS=linux GOARCH=amd64 go build -o zensort-linux main.go
 # Basic usage
 ./zensort -source /path/to/source -dest /path/to/destination
 
+# Force CLI mode
+./zensort -cli -source /path/to/source -dest /path/to/destination
+
 # With custom configuration
 ./zensort -source /path/to/source -dest /path/to/destination -config /path/to/config.json
+```
+
+### Platform-specific Examples
+
+#### Windows
+```powershell
+# GUI Mode
+.\zensort.exe
+
+# CLI Mode
+.\zensort.exe -source "C:\Source\Folder" -dest "C:\Organized\Files"
+```
+
+#### macOS/Linux
+```bash
+# GUI Mode
+./zensort
+
+# CLI Mode
+./zensort -source ~/Documents/ToOrganize -dest ~/Documents/Organized
 ```
 
 ### Configuration
@@ -134,10 +207,10 @@ destination/
 ├── Unknown/
 ├── zensort-logs/
 │   ├── errors_2024-08-29_22-30-15.log
-│   └── operations_2024-08-29_22-30-15.log
-├── zensort-report_2024-08-29_22-35-42.json
-├── zensort-report_2024-08-29_22-35-42.txt
-└── zensort.db
+│   ├── operations_2024-08-29_22-30-15.log
+│   ├── zensort-report_2024-08-29_22-35-42.json
+│   └── zensort-report_2024-08-29_22-35-42.txt
+└── zensort-db.json
 ```
 
 ## Performance Features
@@ -158,18 +231,28 @@ destination/
 - Estimated time remaining calculations
 - Live status updates for current file being processed
 
-## Logging and Reports
+## Logging and Database System
 
-### Detailed Logging
-- **Error Logs**: Comprehensive error tracking with file paths and timestamps
-- **Operation Logs**: Success/failure status for each file operation
-- **Performance Logs**: Processing statistics and timing information
+### Centralized Logging (`zensort-logs/` folder)
+- **Error Logs**: `errors_YYYY-MM-DD_HH-MM-SS.log` - Comprehensive error tracking with file paths and timestamps
+- **Operation Logs**: `operations_YYYY-MM-DD_HH-MM-SS.log` - Success/failure status for each file operation
+- **JSON Reports**: `zensort-report_YYYY-MM-DD_HH-MM-SS.json` - Machine-readable statistics and metadata
+- **Text Reports**: `zensort-report_YYYY-MM-DD_HH-MM-SS.txt` - Human-readable summary with file counts and performance metrics
 
-### Status Reports
-- **JSON Format**: Machine-readable statistics and metadata
-- **Human-Readable**: Summary reports with file counts and performance metrics
-- **Category Breakdown**: Statistics per file type with size information
-- **Error Summary**: Grouped error types with sample file paths
+### Duplicate Detection Database
+- **JSON Database** (Default): `zensort-db.json` - CGO-free, cross-platform hash storage
+- **SQLite Database** (Enhanced): `zensort-db.sqlite` - Professional database with indexing (requires CGO)
+- **Hash-Based Deduplication**: SHA256 content fingerprinting with memory-efficient streaming
+- **Persistent Storage**: Remembers processed files across application restarts
+- **Thread-Safe Operations**: Concurrent access protection with mutex locks
+
+### Report Contents
+- **File Statistics**: Total, processed, skipped, duplicate, and error counts
+- **Size Information**: Total bytes processed with human-readable formatting
+- **Performance Metrics**: Processing duration, files per second, throughput rates
+- **Category Breakdown**: Statistics per file type (Images, Videos, Audios, Documents)
+- **Error Analysis**: Grouped error types with sample file paths and frequencies
+- **EXIF Processing**: Camera-based organization statistics and export counts
 
 ## Dependencies
 
