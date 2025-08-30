@@ -476,6 +476,19 @@ func (g *GUI) openSettingsWindow() {
 	maxLiveDurationEntry := widget.NewEntry()
 	maxLiveDurationEntry.SetText(fmt.Sprintf("%d", g.currentConfig.MotionPhotos.MaxDurationSeconds))
 	
+	// Screenshots settings
+	screenshotsEnabledCheck := widget.NewCheck("Enable Screenshot Detection", nil)
+	screenshotsEnabledCheck.SetChecked(g.currentConfig.Screenshots.Enabled)
+	
+	screenshotPatternsEntry := widget.NewEntry()
+	screenshotPatternsEntry.SetText(strings.Join(g.currentConfig.Screenshots.Patterns, ", "))
+	
+	screenshotExtensionsEntry := widget.NewEntry()
+	screenshotExtensionsEntry.SetText(strings.Join(g.currentConfig.Screenshots.Extensions, ", "))
+	
+	screenshotFolderEntry := widget.NewEntry()
+	screenshotFolderEntry.SetText(g.currentConfig.Screenshots.FolderName)
+	
 	// Skip files extensions
 	skipExtEntry := widget.NewMultiLineEntry()
 	skipExtEntry.SetText(strings.Join(g.currentConfig.SkipFiles.Extensions, "\n"))
@@ -595,6 +608,13 @@ func (g *GUI) openSettingsWindow() {
 				widget.NewLabel("Motion Photo Extensions:"), livePhotoExtensionsEntry,
 				widget.NewLabel("Max Motion Photo Duration (seconds):"), maxLiveDurationEntry,
 			),
+			widget.NewSeparator(),
+			screenshotsEnabledCheck,
+			container.NewGridWithColumns(2,
+				widget.NewLabel("Screenshot Patterns (comma-separated):"), screenshotPatternsEntry,
+				widget.NewLabel("Screenshot Extensions:"), screenshotExtensionsEntry,
+				widget.NewLabel("Screenshot Folder Name:"), screenshotFolderEntry,
+			),
 		)),
 		
 		widget.NewCard("Audio Categories", "", func() *container.Scroll {
@@ -696,6 +716,36 @@ func (g *GUI) saveSettingsFromFormWithAudio(imagesEntry, videosEntry, audiosEntr
 	// Update max Motion Photo duration
 	if duration, err := strconv.Atoi(maxLiveDurationEntry.Text); err == nil && duration > 0 {
 		g.currentConfig.MotionPhotos.MaxDurationSeconds = duration
+	}
+	
+	// Update Screenshots settings
+	g.currentConfig.Screenshots.Enabled = screenshotsEnabledCheck.Checked
+	
+	// Parse screenshot patterns
+	if screenshotText := strings.TrimSpace(screenshotPatternsEntry.Text); screenshotText != "" {
+		patterns := strings.Split(screenshotText, ",")
+		for i, pattern := range patterns {
+			patterns[i] = strings.TrimSpace(pattern)
+		}
+		g.currentConfig.Screenshots.Patterns = patterns
+	}
+	
+	// Parse screenshot extensions
+	if extText := strings.TrimSpace(screenshotExtensionsEntry.Text); extText != "" {
+		extensions := strings.Split(extText, ",")
+		for i, ext := range extensions {
+			ext = strings.TrimSpace(ext)
+			if !strings.HasPrefix(ext, ".") {
+				ext = "." + ext
+			}
+			extensions[i] = strings.ToLower(ext)
+		}
+		g.currentConfig.Screenshots.Extensions = extensions
+	}
+	
+	// Update screenshot folder name
+	if folderName := strings.TrimSpace(screenshotFolderEntry.Text); folderName != "" {
+		g.currentConfig.Screenshots.FolderName = folderName
 	}
 	
 	// Update audio categories

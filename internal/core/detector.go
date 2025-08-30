@@ -289,3 +289,74 @@ func (d *FileTypeDetector) isMotionPhotoFallback(filePath string) bool {
 	
 	return false
 }
+
+// IsScreenshot checks if an image file is a screenshot based on filename patterns
+func (d *FileTypeDetector) IsScreenshot(filePath string) bool {
+	// Only check image files for screenshots
+	fileType := d.DetectFileType(filePath)
+	if fileType != FileTypeImage {
+		return false
+	}
+	
+	// Use config if available, otherwise fall back to defaults
+	if d.config != nil && d.config.Screenshots.Enabled {
+		return d.isScreenshotWithConfig(filePath, &d.config.Screenshots)
+	}
+	
+	// Fallback to hardcoded patterns if no config
+	return d.isScreenshotFallback(filePath)
+}
+
+// isScreenshotWithConfig checks screenshot patterns using provided config
+func (d *FileTypeDetector) isScreenshotWithConfig(filePath string, screenshotConfig *struct {
+	Enabled    bool     `json:"enabled"`
+	Patterns   []string `json:"patterns"`
+	Extensions []string `json:"extensions"`
+	FolderName string   `json:"folder_name"`
+}) bool {
+	filename := strings.ToLower(filepath.Base(filePath))
+	ext := strings.ToLower(filepath.Ext(filePath))
+	
+	// Check if extension is in allowed list
+	extensionAllowed := false
+	for _, allowedExt := range screenshotConfig.Extensions {
+		if ext == strings.ToLower(allowedExt) {
+			extensionAllowed = true
+			break
+		}
+	}
+	
+	if !extensionAllowed {
+		return false
+	}
+	
+	// Check patterns
+	for _, pattern := range screenshotConfig.Patterns {
+		if strings.Contains(filename, strings.ToLower(pattern)) {
+			return true
+		}
+	}
+	
+	return false
+}
+
+// isScreenshotFallback provides fallback detection when no config is available
+func (d *FileTypeDetector) isScreenshotFallback(filePath string) bool {
+	filename := strings.ToLower(filepath.Base(filePath))
+	ext := strings.ToLower(filepath.Ext(filePath))
+	
+	// Check common image extensions
+	if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
+		return false
+	}
+	
+	// Common screenshot patterns
+	patterns := []string{"screenshot", "screen shot", "screen_shot", "screencapture", "screen capture"}
+	for _, pattern := range patterns {
+		if strings.Contains(filename, pattern) {
+			return true
+		}
+	}
+	
+	return false
+}

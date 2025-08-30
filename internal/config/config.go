@@ -53,6 +53,13 @@ type Config struct {
 		Extensions        []string `json:"extensions"`
 		MaxDurationSeconds int     `json:"max_duration_seconds"`
 	} `json:"motion_photos"`
+
+	Screenshots struct {
+		Enabled    bool     `json:"enabled"`
+		Patterns   []string `json:"patterns"`
+		Extensions []string `json:"extensions"`
+		FolderName string   `json:"folder_name"`
+	} `json:"screenshots"`
 }
 
 // DefaultConfig returns a configuration with default values
@@ -135,10 +142,16 @@ func DefaultConfig() *Config {
 	
 	// Default Motion Photos settings
 	config.MotionPhotos.Enabled = true
-	config.MotionPhotos.IPhonePatterns = []string{"IMG_", "LIVE_", "_LIVE"}
-	config.MotionPhotos.SamsungPatterns = []string{"MOTION_", "_MOTION", "MVIMG_"}
+	config.MotionPhotos.IPhonePatterns = []string{"live", "livephoto", "_live", "img_"}
+	config.MotionPhotos.SamsungPatterns = []string{"motion", "_motion", "motionphoto", "mvimg_"}
 	config.MotionPhotos.Extensions = []string{".mov", ".mp4"}
-	config.MotionPhotos.MaxDurationSeconds = 10 // Motion Photos are typically 3-5 seconds, allow up to 10
+	config.MotionPhotos.MaxDurationSeconds = 10
+
+	// Screenshots settings
+	config.Screenshots.Enabled = true
+	config.Screenshots.Patterns = []string{"screenshot", "screen shot", "screen_shot", "screencapture", "screen capture"}
+	config.Screenshots.Extensions = []string{".jpg", ".jpeg", ".png"}
+	config.Screenshots.FolderName = "Screenshots"
 	
 	return config
 }

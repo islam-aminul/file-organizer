@@ -132,7 +132,14 @@ func (fo *FileOrganizer) getDestinationPath(sourcePath string, fileType FileType
 	switch fileType {
 	case FileTypeImage:
 		categoryDir := fo.config.Directories.Images
-		// For images, use EXIF-based organization
+		
+		// Check if it's a screenshot first
+		if fo.detector.IsScreenshot(sourcePath) {
+			// Organize screenshots: Images/Screenshots/
+			return filepath.Join(fo.destDir, categoryDir, fo.config.Screenshots.FolderName, filename), nil
+		}
+		
+		// For regular images, use EXIF-based organization
 		exifData, err := ExtractEXIF(sourcePath)
 		if err != nil {
 			// No EXIF data, use collections folder
