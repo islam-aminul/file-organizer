@@ -98,6 +98,16 @@ func DefaultConfig() *Config {
 		Patterns:   []string{"call", "_call", "phone", "tel", "+", "recording"},
 	}
 	
+	config.AudioCategories["other_audio"] = struct {
+		FolderName string   `json:"folder_name"`
+		Extensions []string `json:"extensions"`
+		Patterns   []string `json:"patterns"`
+	}{
+		FolderName: "Other Audio",
+		Extensions: []string{".mp3", ".wav", ".aac", ".ogg", ".wma", ".au", ".aiff"},
+		Patterns:   []string{"podcast", "audiobook", "lecture", "interview", "meeting"},
+	}
+	
 	// Default skip patterns
 	config.SkipFiles.Extensions = []string{".tmp", ".temp", ".log", ".cache", ".thumb"}
 	config.SkipFiles.Patterns = []string{"~*", ".DS_Store", "Thumbs.db", "*.thumb", "*.thumb[0-9]*"}

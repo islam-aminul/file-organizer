@@ -3,7 +3,10 @@ package gui
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -22,18 +25,19 @@ type GUI struct {
 	window         fyne.Window
 	sourceEntry    *widget.Entry
 	destEntry      *widget.Entry
-	configEntry    *widget.Entry
 	progressBar    *widget.ProgressBar
 	statusLabel    *widget.Label
 	logText        *widget.Entry
 	startButton    *widget.Button
 	stopButton     *widget.Button
+	settingsButton *widget.Button
 	processor      *core.FileProcessor
 	ctx            context.Context
 	cancel         context.CancelFunc
 	progressChan   chan core.ProgressUpdate
 	logBuffer      []string
 	maxLogLines    int
+	currentConfig  *config.Config
 }
 
 // Launch starts the GUI application
@@ -53,10 +57,11 @@ func NewGUI() *GUI {
 	w.CenterOnScreen()
 	
 	return &GUI{
-		app:         a,
-		window:      w,
-		logBuffer:   make([]string, 0),
-		maxLogLines: 500, // Limit log to 500 lines for performance
+		app:           a,
+		window:        w,
+		logBuffer:     make([]string, 0),
+		maxLogLines:   500, // Limit log to 500 lines for performance
+		currentConfig: config.DefaultConfig(),
 	}
 }
 
@@ -74,12 +79,6 @@ func (g *GUI) setupUI() {
 	destBrowse := widget.NewButton("Browse", g.browseDestination)
 	destContainer := container.NewBorder(nil, nil, nil, destBrowse, g.destEntry)
 	
-	// Configuration file selection
-	g.configEntry = widget.NewEntry()
-	g.configEntry.SetPlaceHolder("Optional: Select configuration file...")
-	configBrowse := widget.NewButton("Browse", g.browseConfig)
-	configContainer := container.NewBorder(nil, nil, nil, configBrowse, g.configEntry)
-	
 	// Progress bar
 	g.progressBar = widget.NewProgressBar()
 	g.progressBar.SetValue(0)
@@ -95,13 +94,17 @@ func (g *GUI) setupUI() {
 	logScroll.SetMinSize(fyne.NewSize(0, 200))
 	
 	// Control buttons
+	g.settingsButton = widget.NewButton("Settings", g.showSettings)
+	g.settingsButton.Disable() // Initially disabled until destination is selected
+	
 	g.startButton = widget.NewButton("Start Organization", g.startProcessing)
 	g.startButton.Importance = widget.HighImportance
+	g.startButton.Disable() // Initially disabled until destination is selected
 	
 	g.stopButton = widget.NewButton("Stop", g.stopProcessing)
 	g.stopButton.Disable()
 	
-	buttonContainer := container.NewHBox(g.startButton, g.stopButton)
+	buttonContainer := container.NewHBox(g.settingsButton, g.startButton, g.stopButton)
 	
 	// Create form layout
 	form := container.NewVBox(
@@ -109,14 +112,13 @@ func (g *GUI) setupUI() {
 		sourceContainer,
 		widget.NewLabel("Destination Directory:"),
 		destContainer,
-		widget.NewLabel("Configuration File (Optional):"),
-		configContainer,
+		widget.NewSeparator(),
+		buttonContainer,
 		widget.NewSeparator(),
 		widget.NewLabel("Progress:"),
 		g.progressBar,
 		g.statusLabel,
 		widget.NewSeparator(),
-		buttonContainer,
 		widget.NewLabel("Processing Log:"),
 		logScroll,
 	)
@@ -142,30 +144,381 @@ func (g *GUI) browseDestination() {
 			return
 		}
 		g.destEntry.SetText(uri.Path())
+		g.onDestinationChanged()
 	}, g.window)
 }
 
-// browseConfig opens file dialog for configuration file
-func (g *GUI) browseConfig() {
-	dialog.ShowFileOpen(func(uri fyne.URIReadCloser, err error) {
-		if err != nil || uri == nil {
-			return
+// onDestinationChanged handles destination directory selection changes
+func (g *GUI) onDestinationChanged() {
+	destDir := g.destEntry.Text
+	if destDir == "" {
+		g.settingsButton.Disable()
+		g.startButton.Disable()
+		return
+	}
+	
+	// Enable buttons when destination is selected
+	g.settingsButton.Enable()
+	g.startButton.Enable()
+}
+
+// showSettings opens the settings configuration window
+func (g *GUI) showSettings() {
+	g.openSettingsWindow()
+}
+
+// loadDestinationConfig loads configuration from destination directory or creates default
+func (g *GUI) loadDestinationConfig(destDir string) (*config.Config, error) {
+	configPath := filepath.Join(destDir, "zensort-config.json")
+	
+	// Try to load existing config from destination directory
+	if cfg, err := config.LoadConfig(configPath); err == nil {
+		g.currentConfig = cfg
+		return cfg, nil
+	}
+	
+	// If no config exists, save default config to destination directory
+	if err := config.SaveConfig(g.currentConfig, configPath); err != nil {
+		return nil, fmt.Errorf("failed to save default config: %w", err)
+	}
+	
+	return g.currentConfig, nil
+}
+
+// openSettingsWindow creates and displays the settings configuration window
+func (g *GUI) openSettingsWindow() {
+	settingsWindow := g.app.NewWindow("ZenSort Settings")
+	settingsWindow.Resize(fyne.NewSize(600, 700))
+	settingsWindow.CenterOnScreen()
+	
+	// Load current config from destination if available
+	if destDir := g.destEntry.Text; destDir != "" {
+		if cfg, err := g.loadDestinationConfig(destDir); err == nil {
+			g.currentConfig = cfg
 		}
-		defer uri.Close()
-		g.configEntry.SetText(uri.URI().Path())
-	}, g.window)
+	}
+	
+	// Directory names section
+	imagesEntry := widget.NewEntry()
+	imagesEntry.SetText(g.currentConfig.Directories.Images)
+	
+	videosEntry := widget.NewEntry()
+	videosEntry.SetText(g.currentConfig.Directories.Videos)
+	
+	audiosEntry := widget.NewEntry()
+	audiosEntry.SetText(g.currentConfig.Directories.Audios)
+	
+	documentsEntry := widget.NewEntry()
+	documentsEntry.SetText(g.currentConfig.Directories.Documents)
+	
+	unknownEntry := widget.NewEntry()
+	unknownEntry.SetText(g.currentConfig.Directories.Unknown)
+	
+	hiddenEntry := widget.NewEntry()
+	hiddenEntry.SetText(g.currentConfig.Directories.Hidden)
+	
+	// Image subdirectories
+	originalsEntry := widget.NewEntry()
+	originalsEntry.SetText(g.currentConfig.ImageDirs.Originals)
+	
+	exportsEntry := widget.NewEntry()
+	exportsEntry.SetText(g.currentConfig.ImageDirs.Exports)
+	
+	noExifYearEntry := widget.NewEntry()
+	noExifYearEntry.SetText(g.currentConfig.ImageDirs.NoExifYearFolder)
+	
+	// Processing settings
+	maxWidthEntry := widget.NewEntry()
+	maxWidthEntry.SetText(fmt.Sprintf("%d", g.currentConfig.Processing.MaxImageWidth))
+	
+	maxHeightEntry := widget.NewEntry()
+	maxHeightEntry.SetText(fmt.Sprintf("%d", g.currentConfig.Processing.MaxImageHeight))
+	
+	// Skip files extensions
+	skipExtEntry := widget.NewMultiLineEntry()
+	skipExtEntry.SetText(strings.Join(g.currentConfig.SkipFiles.Extensions, "\n"))
+	skipExtEntry.Wrapping = fyne.TextWrapWord
+	skipExtScroll := container.NewScroll(skipExtEntry)
+	skipExtScroll.SetMinSize(fyne.NewSize(0, 120))
+	
+	// Skip files patterns
+	skipPatternsEntry := widget.NewMultiLineEntry()
+	skipPatternsEntry.SetText(strings.Join(g.currentConfig.SkipFiles.Patterns, "\n"))
+	skipPatternsEntry.Wrapping = fyne.TextWrapWord
+	skipPatternsScroll := container.NewScroll(skipPatternsEntry)
+	skipPatternsScroll.SetMinSize(fyne.NewSize(0, 120))
+	
+	// Audio categories settings
+	var audioEntries = make(map[string]struct {
+		folderEntry    *widget.Entry
+		extensionsEntry *widget.Entry
+		patternsEntry  *widget.Entry
+	})
+	
+	audioContainer := container.NewVBox()
+	for categoryKey, category := range g.currentConfig.AudioCategories {
+		folderEntry := widget.NewEntry()
+		folderEntry.SetText(category.FolderName)
+		
+		extensionsEntry := widget.NewEntry()
+		extensionsEntry.SetText(strings.Join(category.Extensions, ", "))
+		
+		patternsEntry := widget.NewEntry()
+		patternsEntry.SetText(strings.Join(category.Patterns, ", "))
+		
+		audioEntries[categoryKey] = struct {
+			folderEntry    *widget.Entry
+			extensionsEntry *widget.Entry
+			patternsEntry  *widget.Entry
+		}{folderEntry, extensionsEntry, patternsEntry}
+		
+		// Make input fields larger for better visibility
+		folderEntry.Resize(fyne.NewSize(200, 0))
+		extensionsEntry.Resize(fyne.NewSize(300, 0))
+		patternsEntry.Resize(fyne.NewSize(300, 0))
+		
+		categoryCard := widget.NewCard(strings.Title(strings.ReplaceAll(categoryKey, "_", " ")), "", 
+			container.NewVBox(
+				container.NewVBox(
+					widget.NewLabel("Folder Name:"), 
+					folderEntry,
+					widget.NewLabel("Extensions (comma-separated):"), 
+					extensionsEntry,
+					widget.NewLabel("Patterns (comma-separated):"), 
+					patternsEntry,
+				),
+			))
+		audioContainer.Add(categoryCard)
+	}
+	
+	// Buttons
+	saveButton := widget.NewButton("Save Settings", func() {
+		g.saveSettingsFromFormWithAudio(imagesEntry, videosEntry, audiosEntry, documentsEntry, unknownEntry, hiddenEntry,
+			originalsEntry, exportsEntry, noExifYearEntry, maxWidthEntry, maxHeightEntry, skipExtEntry, skipPatternsEntry, audioEntries)
+		settingsWindow.Close()
+	})
+	saveButton.Importance = widget.HighImportance
+	
+	cancelButton := widget.NewButton("Cancel", func() {
+		settingsWindow.Close()
+	})
+	
+	resetButton := widget.NewButton("Reset to Defaults", func() {
+		g.currentConfig = config.DefaultConfig()
+		g.refreshSettingsFormWithAudio(imagesEntry, videosEntry, audiosEntry, documentsEntry, unknownEntry, hiddenEntry,
+			originalsEntry, exportsEntry, noExifYearEntry, maxWidthEntry, maxHeightEntry, skipExtEntry, skipPatternsEntry, audioEntries)
+	})
+	
+	buttonContainer := container.NewHBox(saveButton, cancelButton, resetButton)
+	
+	// Create form layout
+	form := container.NewVBox(
+		widget.NewCard("Directory Names", "", container.NewVBox(
+			container.NewGridWithColumns(2,
+				widget.NewLabel("Images:"), imagesEntry,
+				widget.NewLabel("Videos:"), videosEntry,
+				widget.NewLabel("Audios:"), audiosEntry,
+				widget.NewLabel("Documents:"), documentsEntry,
+				widget.NewLabel("Unknown:"), unknownEntry,
+				widget.NewLabel("Hidden:"), hiddenEntry,
+			),
+		)),
+		
+		widget.NewCard("Image Organization", "", container.NewVBox(
+			container.NewGridWithColumns(2,
+				widget.NewLabel("Originals Folder:"), originalsEntry,
+				widget.NewLabel("Exports Folder:"), exportsEntry,
+				widget.NewLabel("No EXIF Year Folder:"), noExifYearEntry,
+			),
+		)),
+		
+		widget.NewCard("Processing Settings", "", container.NewVBox(
+			container.NewGridWithColumns(2,
+				widget.NewLabel("Max Image Width:"), maxWidthEntry,
+				widget.NewLabel("Max Image Height:"), maxHeightEntry,
+			),
+		)),
+		
+		widget.NewCard("Audio Categories", "", func() *container.Scroll {
+			audioScroll := container.NewScroll(audioContainer)
+			audioScroll.SetMinSize(fyne.NewSize(0, 300))
+			return audioScroll
+		}()),
+		
+		widget.NewCard("Skip Files", "", container.NewVBox(
+			widget.NewLabel("Extensions (one per line):"),
+			skipExtScroll,
+			widget.NewLabel("Patterns (one per line):"),
+			skipPatternsScroll,
+		)),
+		
+		buttonContainer,
+	)
+	
+	scroll := container.NewScroll(form)
+	settingsWindow.SetContent(container.NewPadded(scroll))
+	settingsWindow.Show()
+}
+
+// saveSettingsFromFormWithAudio saves the configuration from form inputs including audio settings
+func (g *GUI) saveSettingsFromFormWithAudio(imagesEntry, videosEntry, audiosEntry, documentsEntry, unknownEntry, hiddenEntry,
+	originalsEntry, exportsEntry, noExifYearEntry, maxWidthEntry, maxHeightEntry, skipExtEntry, skipPatternsEntry *widget.Entry,
+	audioEntries map[string]struct {
+		folderEntry    *widget.Entry
+		extensionsEntry *widget.Entry
+		patternsEntry  *widget.Entry
+	}) {
+	
+	// Update directory names
+	g.currentConfig.Directories.Images = imagesEntry.Text
+	g.currentConfig.Directories.Videos = videosEntry.Text
+	g.currentConfig.Directories.Audios = audiosEntry.Text
+	g.currentConfig.Directories.Documents = documentsEntry.Text
+	g.currentConfig.Directories.Unknown = unknownEntry.Text
+	g.currentConfig.Directories.Hidden = hiddenEntry.Text
+	
+	// Update image directories
+	g.currentConfig.ImageDirs.Originals = originalsEntry.Text
+	g.currentConfig.ImageDirs.Exports = exportsEntry.Text
+	g.currentConfig.ImageDirs.NoExifYearFolder = noExifYearEntry.Text
+	
+	// Update processing settings
+	if width, err := strconv.Atoi(maxWidthEntry.Text); err == nil {
+		g.currentConfig.Processing.MaxImageWidth = width
+	}
+	if height, err := strconv.Atoi(maxHeightEntry.Text); err == nil {
+		g.currentConfig.Processing.MaxImageHeight = height
+	}
+	
+	// Update audio categories
+	for categoryKey, entries := range audioEntries {
+		if category, exists := g.currentConfig.AudioCategories[categoryKey]; exists {
+			category.FolderName = entries.folderEntry.Text
+			
+			// Parse extensions (comma-separated)
+			extText := strings.TrimSpace(entries.extensionsEntry.Text)
+			if extText != "" {
+				extensions := strings.Split(extText, ",")
+				for i, ext := range extensions {
+					extensions[i] = strings.TrimSpace(ext)
+				}
+				category.Extensions = extensions
+			}
+			
+			// Parse patterns (comma-separated)
+			patText := strings.TrimSpace(entries.patternsEntry.Text)
+			if patText != "" {
+				patterns := strings.Split(patText, ",")
+				for i, pat := range patterns {
+					patterns[i] = strings.TrimSpace(pat)
+				}
+				category.Patterns = patterns
+			} else {
+				category.Patterns = []string{}
+			}
+			
+			g.currentConfig.AudioCategories[categoryKey] = category
+		}
+	}
+	
+	// Update skip files
+	g.currentConfig.SkipFiles.Extensions = strings.Split(strings.TrimSpace(skipExtEntry.Text), "\n")
+	g.currentConfig.SkipFiles.Patterns = strings.Split(strings.TrimSpace(skipPatternsEntry.Text), "\n")
+	
+	// Save to destination directory if available
+	if destDir := g.destEntry.Text; destDir != "" {
+		configPath := filepath.Join(destDir, "zensort-config.json")
+		if err := config.SaveConfig(g.currentConfig, configPath); err != nil {
+			dialog.ShowError(fmt.Errorf("failed to save settings: %w", err), g.window)
+		} else {
+			dialog.ShowInformation("Settings Saved", "Configuration saved successfully!", g.window)
+		}
+	}
+}
+
+// refreshSettingsFormWithAudio updates form fields with current config values including audio settings
+func (g *GUI) refreshSettingsFormWithAudio(imagesEntry, videosEntry, audiosEntry, documentsEntry, unknownEntry, hiddenEntry,
+	originalsEntry, exportsEntry, noExifYearEntry, maxWidthEntry, maxHeightEntry, skipExtEntry, skipPatternsEntry *widget.Entry,
+	audioEntries map[string]struct {
+		folderEntry    *widget.Entry
+		extensionsEntry *widget.Entry
+		patternsEntry  *widget.Entry
+	}) {
+	
+	imagesEntry.SetText(g.currentConfig.Directories.Images)
+	videosEntry.SetText(g.currentConfig.Directories.Videos)
+	audiosEntry.SetText(g.currentConfig.Directories.Audios)
+	documentsEntry.SetText(g.currentConfig.Directories.Documents)
+	unknownEntry.SetText(g.currentConfig.Directories.Unknown)
+	hiddenEntry.SetText(g.currentConfig.Directories.Hidden)
+	
+	originalsEntry.SetText(g.currentConfig.ImageDirs.Originals)
+	exportsEntry.SetText(g.currentConfig.ImageDirs.Exports)
+	noExifYearEntry.SetText(g.currentConfig.ImageDirs.NoExifYearFolder)
+	
+	maxWidthEntry.SetText(fmt.Sprintf("%d", g.currentConfig.Processing.MaxImageWidth))
+	maxHeightEntry.SetText(fmt.Sprintf("%d", g.currentConfig.Processing.MaxImageHeight))
+	
+	// Update audio categories
+	for categoryKey, entries := range audioEntries {
+		if category, exists := g.currentConfig.AudioCategories[categoryKey]; exists {
+			entries.folderEntry.SetText(category.FolderName)
+			entries.extensionsEntry.SetText(strings.Join(category.Extensions, ", "))
+			entries.patternsEntry.SetText(strings.Join(category.Patterns, ", "))
+		}
+	}
+	
+	skipExtEntry.SetText(strings.Join(g.currentConfig.SkipFiles.Extensions, "\n"))
+	skipPatternsEntry.SetText(strings.Join(g.currentConfig.SkipFiles.Patterns, "\n"))
+}
+
+// validateDirectories ensures destination is not within source directory
+func (g *GUI) validateDirectories(sourceDir, destDir string) error {
+	// Clean and resolve absolute paths
+	absSource, err := filepath.Abs(sourceDir)
+	if err != nil {
+		return fmt.Errorf("invalid source directory: %w", err)
+	}
+	
+	absDest, err := filepath.Abs(destDir)
+	if err != nil {
+		return fmt.Errorf("invalid destination directory: %w", err)
+	}
+	
+	// Check if destination is within source
+	relPath, err := filepath.Rel(absSource, absDest)
+	if err == nil && !strings.HasPrefix(relPath, "..") {
+		return fmt.Errorf("destination directory cannot be within source directory")
+	}
+	
+	// Check if source and destination are the same
+	if absSource == absDest {
+		return fmt.Errorf("source and destination directories cannot be the same")
+	}
+	
+	return nil
 }
 
 // startProcessing begins the file organization process
 func (g *GUI) startProcessing() {
 	sourceDir := g.sourceEntry.Text
 	destDir := g.destEntry.Text
-	configFile := g.configEntry.Text
 	
-	// Validate inputs
+	// Use fallback for source directory if not selected
 	if sourceDir == "" {
-		dialog.ShowError(fmt.Errorf("please select a source directory"), g.window)
-		return
+		// Try current working directory first
+		if cwd, err := os.Getwd(); err == nil {
+			sourceDir = cwd
+		} else {
+			// Fallback to executable directory
+			if execPath, err := os.Executable(); err == nil {
+				sourceDir = filepath.Dir(execPath)
+			} else {
+				dialog.ShowError(fmt.Errorf("could not determine source directory"), g.window)
+				return
+			}
+		}
+		g.sourceEntry.SetText(sourceDir)
 	}
 	
 	if destDir == "" {
@@ -173,8 +526,14 @@ func (g *GUI) startProcessing() {
 		return
 	}
 	
-	// Load configuration
-	cfg, err := config.LoadConfig(configFile)
+	// Validate that destination is not within source
+	if err := g.validateDirectories(sourceDir, destDir); err != nil {
+		dialog.ShowError(err, g.window)
+		return
+	}
+	
+	// Load or create configuration in destination directory
+	cfg, err := g.loadDestinationConfig(destDir)
 	if err != nil {
 		dialog.ShowError(fmt.Errorf("failed to load configuration: %w", err), g.window)
 		return
@@ -191,7 +550,7 @@ func (g *GUI) startProcessing() {
 	g.stopButton.Enable()
 	g.sourceEntry.Disable()
 	g.destEntry.Disable()
-	g.configEntry.Disable()
+	g.settingsButton.Disable()
 	g.progressBar.SetValue(0)
 	g.statusLabel.SetText("Initializing...")
 	g.logBuffer = make([]string, 0) // Clear log buffer
@@ -207,7 +566,7 @@ func (g *GUI) startProcessing() {
 			g.stopButton.Disable()
 			g.sourceEntry.Enable()
 			g.destEntry.Enable()
-			g.configEntry.Enable()
+			g.settingsButton.Enable()
 			close(g.progressChan)
 		}()
 		

@@ -27,6 +27,11 @@
       "folder_name": "Call Recordings",
       "extensions": [".m4a", ".wav", ".aac", ".3gp", ".amr"],
       "patterns": ["call", "_call", "phone", "tel", "+", "recording"]
+    },
+    "other_audio": {
+      "folder_name": "Other Audio",
+      "extensions": [".mp3", ".wav", ".aac", ".ogg", ".wma", ".au", ".aiff"],
+      "patterns": ["podcast", "audiobook", "lecture", "interview", "meeting"]
     }
   },
   "skip_files": {

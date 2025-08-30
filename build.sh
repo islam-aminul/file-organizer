@@ -13,32 +13,26 @@ export CGO_ENABLED=1
 # Build the main executable
 if go build -o zensort main.go; then
     echo ""
-    echo "✓ Build successful! zensort supports both GUI and CLI modes."
-    echo ""
-    echo "Usage:"
-    echo "  GUI Mode (default):    ./zensort"
-    echo "  CLI Mode:              ./zensort -source /path/to/source -dest /path/to/dest"
-    echo "  Force CLI:             ./zensort -cli -source /path/to/source -dest /path/to/dest"
-    echo ""
-    echo "Make executable if needed: chmod +x zensort"
+    echo "Build complete! Run ./zensort to start the application."
 else
     echo ""
-    echo "✗ CGO build failed. Building CLI-only version..."
-    export CGO_ENABLED=0
+    echo "CGO build failed. Building CLI-only version..."
     
+    # Fallback to CLI-only build
+    export CGO_ENABLED=0
     if go build -tags nocgo -o zensort-cli-only main.go; then
         echo ""
-        echo "✓ CLI-only build complete! Use ./zensort-cli-only for command-line interface."
-        echo ""
-        echo "To enable GUI support:"
-        echo "  1. Install a C compiler (gcc, clang, or Xcode Command Line Tools)"
-        echo "  2. Run: CGO_ENABLED=1 go build -o zensort main.go"
-        echo ""
-        echo "Usage:"
-        echo "  ./zensort-cli-only -source /path/to/source -dest /path/to/dest"
+        echo "CLI-only build complete! Use ./zensort-cli-only for command-line interface."
+        echo "To use GUI, install development tools:"
+        echo "  Ubuntu/Debian: sudo apt install build-essential libgl1-mesa-dev xorg-dev"
+        echo "  CentOS/RHEL: sudo yum groupinstall \"Development Tools\""
+        echo "  macOS: xcode-select --install"
+        echo "Then run: export CGO_ENABLED=1 && go build -o zensort main.go"
     else
-        echo ""
-        echo "✗ Build failed completely. Check Go installation and dependencies."
+        echo "Error: Both GUI and CLI builds failed!"
         exit 1
     fi
 fi
+
+echo ""
+echo "Build process completed."
