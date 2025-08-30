@@ -31,6 +31,7 @@ type GUI struct {
 	progressBar    *widget.ProgressBar
 	statusLabel    *widget.Label
 	logText        *widget.Entry
+	logScroll      *container.Scroll
 	startButton    *widget.Button
 	pauseButton    *widget.Button
 	stopButton     *widget.Button
@@ -171,8 +172,8 @@ func (g *GUI) setupUI() {
 	g.logText = widget.NewMultiLineEntry()
 	g.logText.SetPlaceHolder("Processing logs will appear here...")
 	g.logText.Wrapping = fyne.TextWrapWord
-	logScroll := container.NewScroll(g.logText)
-	logScroll.SetMinSize(fyne.NewSize(0, 200))
+	g.logScroll = container.NewScroll(g.logText)
+	g.logScroll.SetMinSize(fyne.NewSize(0, 200))
 	
 	// Control buttons with colors
 	g.settingsButton = widget.NewButton("Settings", g.showSettings)
@@ -207,7 +208,7 @@ func (g *GUI) setupUI() {
 		g.statusLabel,
 		widget.NewSeparator(),
 		widget.NewLabel("Processing Log:"),
-		logScroll,
+		g.logScroll,
 	)
 	
 	// Set content
@@ -1101,7 +1102,10 @@ func (g *GUI) updateLogDisplay() {
 	}
 	
 	g.logText.SetText(logContent)
-	g.logText.CursorRow = len(g.logBuffer) // Scroll to bottom
+	g.logText.CursorRow = len(g.logBuffer) // Move cursor to bottom
+	
+	// Auto-scroll to bottom
+	g.logScroll.ScrollToBottom()
 }
 
 // batchLogFile batches files by folder for better log display
