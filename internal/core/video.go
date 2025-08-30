@@ -38,17 +38,35 @@ func (va *VideoAnalyzer) GetVideoDuration(filePath string) (time.Duration, error
 	return va.estimateDurationFromSize(filePath)
 }
 
-// getFFProbeDuration uses ffprobe to get exact video duration
+// getFFProbeDuration uses ffprobe to get exact video duration with timeout
 func (va *VideoAnalyzer) getFFProbeDuration(filePath string) (time.Duration, error) {
-	// Check if ffprobe is available
+	// Check if ffprobe is available with timeout
 	cmd := exec.Command("ffprobe", "-v", "quiet", "-show_entries", "format=duration", "-of", "csv=p=0", filePath)
 	
 	// Hide console window on Windows to prevent flashing
 	hideConsoleWindow(cmd)
 	
-	output, err := cmd.Output()
-	if err != nil {
-		return 0, fmt.Errorf("ffprobe not available or failed: %w", err)
+	// Set timeout to prevent hanging
+	done := make(chan error, 1)
+	var output []byte
+	var cmdErr error
+	
+	go func() {
+		output, cmdErr = cmd.Output()
+		done <- cmdErr
+	}()
+	
+	select {
+	case err := <-done:
+		if err != nil {
+			return 0, fmt.Errorf("ffprobe not available or failed: %w", err)
+		}
+	case <-time.After(10 * time.Second):
+		// Kill the process if it's taking too long
+		if cmd.Process != nil {
+			cmd.Process.Kill()
+		}
+		return 0, fmt.Errorf("ffprobe timeout after 10 seconds for file: %s", filePath)
 	}
 	
 	// Parse duration
@@ -99,17 +117,35 @@ func (va *VideoAnalyzer) IsShortVideo(filePath string, thresholdSeconds int) boo
 	return duration < threshold
 }
 
-// ExtractVideoMetadata extracts metadata from video file using ffprobe
+// ExtractVideoMetadata extracts metadata from video file using ffprobe with timeout
 func (va *VideoAnalyzer) ExtractVideoMetadata(filePath string) (*VideoMetadata, error) {
-	// Use ffprobe to get comprehensive metadata
+	// Use ffprobe to get comprehensive metadata with timeout
 	cmd := exec.Command("ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", filePath)
 	
 	// Hide console window on Windows
 	hideConsoleWindow(cmd)
 	
-	output, err := cmd.Output()
-	if err != nil {
-		return &VideoMetadata{}, fmt.Errorf("ffprobe not available or failed: %w", err)
+	// Set timeout to prevent hanging
+	done := make(chan error, 1)
+	var output []byte
+	var cmdErr error
+	
+	go func() {
+		output, cmdErr = cmd.Output()
+		done <- cmdErr
+	}()
+	
+	select {
+	case err := <-done:
+		if err != nil {
+			return &VideoMetadata{}, fmt.Errorf("ffprobe not available or failed: %w", err)
+		}
+	case <-time.After(15 * time.Second):
+		// Kill the process if it's taking too long
+		if cmd.Process != nil {
+			cmd.Process.Kill()
+		}
+		return &VideoMetadata{}, fmt.Errorf("ffprobe metadata timeout after 15 seconds for file: %s", filePath)
 	}
 	
 	// Parse JSON output

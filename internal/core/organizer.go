@@ -315,6 +315,7 @@ func (fo *FileOrganizer) copyFile(src, dst string) error {
 		exifData, err := ExtractEXIF(src)
 		if err != nil {
 			// If EXIF extraction fails, fall back to regular copy
+			fo.logger.LogError(LogLevelWarning, "EXIF extraction failed, using regular copy", src, err)
 			return fo.regularCopy(src, dst)
 		}
 		

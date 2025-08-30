@@ -26,7 +26,7 @@
     "call_recordings": {
       "folder_name": "Call Recordings",
       "extensions": [".m4a", ".wav", ".aac", ".3gp", ".amr"],
-      "patterns": ["call", "_call", "phone", "tel", "+", "recording"]
+      "patterns": ["call", "_call", "phone", "tel", "SIM", "recording"]
     },
     "other_audio": {
       "folder_name": "Other Audio",

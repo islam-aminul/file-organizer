@@ -21,19 +21,43 @@ type EXIFData struct {
 	Software     string
 }
 
-// ExtractEXIF extracts EXIF data from an image file
+// ExtractEXIF extracts EXIF data from an image file with timeout protection
 func ExtractEXIF(filePath string) (*EXIFData, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
+	// Set timeout to prevent hanging on corrupted files
+	done := make(chan *EXIFData, 1)
+	errChan := make(chan error, 1)
+	
+	go func() {
+		file, err := os.Open(filePath)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		defer file.Close()
 
-	x, err := exif.Decode(file)
-	if err != nil {
-		// Return empty EXIF data if no EXIF found
-		return &EXIFData{}, nil
+		x, err := exif.Decode(file)
+		if err != nil {
+			// Return empty EXIF data if no EXIF found
+			done <- &EXIFData{}
+			return
+		}
+		
+		data := extractEXIFFields(x)
+		done <- data
+	}()
+	
+	select {
+	case data := <-done:
+		return data, nil
+	case err := <-errChan:
+		return nil, err
+	case <-time.After(5 * time.Second):
+		return &EXIFData{}, fmt.Errorf("EXIF extraction timeout after 5 seconds for file: %s", filePath)
 	}
+}
+
+// extractEXIFFields extracts EXIF fields from decoded EXIF data
+func extractEXIFFields(x *exif.Exif) *EXIFData {
 
 	data := &EXIFData{}
 
@@ -75,7 +99,7 @@ func ExtractEXIF(filePath string) (*EXIFData, error) {
 		}
 	}
 
-	return data, nil
+	return data
 }
 
 // IsEditedImage checks if an image has been edited based on EXIF software field
