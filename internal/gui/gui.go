@@ -54,7 +54,7 @@ func Launch() {
 
 // NewGUI creates a new GUI instance
 func NewGUI() *GUI {
-	a := app.New()
+	a := app.NewWithID("com.zensort.fileorganizer")
 	a.SetIcon(nil) // You can set an icon here
 	
 	w := a.NewWindow("ZenSort - File Organizer")
