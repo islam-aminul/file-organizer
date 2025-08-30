@@ -123,6 +123,10 @@ func (fo *FileOrganizer) getDestinationPath(sourcePath string, fileType FileType
 		case FileTypeDocument:
 			categoryDir = fo.config.Directories.Documents
 		default:
+			// Check if unknown files should be skipped in hidden files too
+			if fo.config.SkipUnknown {
+				return "", fmt.Errorf("skipping unknown hidden file type: %s", filename)
+			}
 			categoryDir = fo.config.Directories.Unknown
 		}
 		return filepath.Join(fo.destDir, categoryDir, fo.config.Directories.Hidden, filename), nil
@@ -185,6 +189,10 @@ func (fo *FileOrganizer) getDestinationPath(sourcePath string, fileType FileType
 		return filepath.Join(fo.destDir, categoryDir, ext, filename), nil
 		
 	default:
+		// Check if unknown files should be skipped
+		if fo.config.SkipUnknown {
+			return "", fmt.Errorf("skipping unknown file type: %s", filename)
+		}
 		categoryDir := fo.config.Directories.Unknown
 		return filepath.Join(fo.destDir, categoryDir, filename), nil
 	}

@@ -22,6 +22,8 @@ ZenSort is a powerful, cross-platform file organization application built in Go 
 - **Configurable Everything**: JSON configuration for all directory names and settings
 - **Motion Photos Detection**: Automatic detection and organization of iPhone/Samsung Motion Photos
 - **Short Video Classification**: Duration-based detection and separate organization of short videos
+- **Screenshot Detection**: Automatic detection and organization of screenshots with configurable patterns
+- **Skip Unknown Files**: Option to skip unknown file types instead of organizing them
 - **Skip Patterns**: Ignore files by extensions, patterns, or directory paths
 - **Detailed Logging**: Comprehensive error and operation logs in `zensort-logs/` directory
 - **Status Reports**: JSON and TXT reports with statistics stored in `zensort-logs/` folder
@@ -138,13 +140,15 @@ ZenSort uses JSON configuration files to customize organization behavior. The co
 - **Image Organization**: Configure EXIF-based sorting and export settings
 - **Motion Photos**: Configure iPhone/Samsung pattern detection, extensions, and duration limits
 - **Short Videos**: Set duration threshold for short video classification
+- **Screenshot Detection**: Configure patterns, extensions, and folder name for screenshot organization
+- **Skip Unknown Files**: Option to skip unknown file types instead of organizing them (default: enabled)
 - **Audio Categories**: Define custom audio file categorization with patterns and extensions
 - **Skip Files**: Specify files, patterns, and directories to ignore
 - **Processing Settings**: Adjust image processing parameters and buffer sizes
 
-### Motion Photos & Short Videos
+### Intelligent File Classification
 
-ZenSort provides intelligent video classification:
+ZenSort provides advanced file detection and organization:
 
 - **Motion Photos**: Video files with specific filename patterns (iPhone/Samsung Live Photos)
   - Detected by filename patterns like `live`, `motion`, `img_`, `mvimg_`
@@ -156,7 +160,17 @@ ZenSort provides intelligent video classification:
   - Organized in `Videos/Short Videos/Year/`
   - Configurable duration threshold (default: disabled)
 
-- **Regular Videos**: All other video files organized by year in `Videos/Year/`
+- **Screenshots**: Image files with screenshot-specific patterns
+  - Detected by filename patterns like `screenshot`, `screen shot`, `capture`
+  - Organized in `Images/Screenshots/` (configurable folder name)
+  - Configurable patterns and extensions (default: jpg, jpeg, png)
+
+- **Skip Unknown Files**: Option to skip unrecognized file types
+  - Default: enabled (unknown files are skipped)
+  - When disabled: unknown files go to `Unknown/` directory
+  - Helps keep destination clean and organized
+
+- **Regular Files**: All other files organized by type and year
 
 See [MOTION_PHOTOS.md](MOTION_PHOTOS.md) for detailed configuration and usage.
 
@@ -178,6 +192,7 @@ Destination/
 │   │   ├── Collections/ (no EXIF data)
 │   │   └── 0000/ (configurable no-EXIF folder)
 │   ├── Exports/ (resized images)
+│   ├── Screenshots/ (detected screenshots)
 │   └── Hidden/ (hidden images - no exports)
 ├── Videos/
 │   ├── Motion Photos/
@@ -200,7 +215,7 @@ Destination/
 │   ├── DOCX/
 │   ├── TXT/
 │   └── Hidden/
-├── Unknown/
+├── Unknown/ (only if skip_unknown is disabled)
 └── zensort-db/ (database files)
 ```
 

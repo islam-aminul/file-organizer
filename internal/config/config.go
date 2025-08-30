@@ -60,6 +60,8 @@ type Config struct {
 		Extensions []string `json:"extensions"`
 		FolderName string   `json:"folder_name"`
 	} `json:"screenshots"`
+
+	SkipUnknown bool `json:"skip_unknown"`
 }
 
 // DefaultConfig returns a configuration with default values
@@ -152,6 +154,9 @@ func DefaultConfig() *Config {
 	config.Screenshots.Patterns = []string{"screenshot", "screen shot", "screen_shot", "screencapture", "screen capture"}
 	config.Screenshots.Extensions = []string{".jpg", ".jpeg", ".png"}
 	config.Screenshots.FolderName = "Screenshots"
+	
+	// Skip unknown files by default
+	config.SkipUnknown = true
 	
 	return config
 }

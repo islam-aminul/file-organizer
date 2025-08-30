@@ -490,6 +490,10 @@ func (g *GUI) openSettingsWindow() {
 	screenshotFolderEntry := widget.NewEntry()
 	screenshotFolderEntry.SetText(g.currentConfig.Screenshots.FolderName)
 	
+	// Skip unknown files setting
+	skipUnknownCheck := widget.NewCheck("Skip Unknown File Types", nil)
+	skipUnknownCheck.SetChecked(g.currentConfig.SkipUnknown)
+	
 	// Skip files extensions
 	skipExtEntry := widget.NewMultiLineEntry()
 	skipExtEntry.SetText(strings.Join(g.currentConfig.SkipFiles.Extensions, "\n"))
@@ -550,7 +554,7 @@ func (g *GUI) openSettingsWindow() {
 	// Buttons
 	saveButton := widget.NewButton("Save Settings", func() {
 		g.saveSettingsFromFormWithAudio(imagesEntry, videosEntry, audiosEntry, documentsEntry, unknownEntry, hiddenEntry,
-			originalsEntry, exportsEntry, noExifYearEntry, maxWidthEntry, maxHeightEntry, enableExportsCheck, jpegQualityEntry, shortVideoThresholdEntry, livePhotosEnabledCheck, iPhonePatternsEntry, samsungPatternsEntry, livePhotoExtensionsEntry, maxLiveDurationEntry, screenshotsEnabledCheck, screenshotPatternsEntry, screenshotExtensionsEntry, screenshotFolderEntry, skipExtEntry, skipPatternsEntry, audioEntries)
+			originalsEntry, exportsEntry, noExifYearEntry, maxWidthEntry, maxHeightEntry, enableExportsCheck, jpegQualityEntry, shortVideoThresholdEntry, livePhotosEnabledCheck, iPhonePatternsEntry, samsungPatternsEntry, livePhotoExtensionsEntry, maxLiveDurationEntry, screenshotsEnabledCheck, screenshotPatternsEntry, screenshotExtensionsEntry, screenshotFolderEntry, skipUnknownCheck, skipExtEntry, skipPatternsEntry, audioEntries)
 		settingsWindow.Close()
 	})
 	saveButton.Importance = widget.HighImportance
@@ -625,6 +629,8 @@ func (g *GUI) openSettingsWindow() {
 		}()),
 		
 		widget.NewCard("Skip Files", "", container.NewVBox(
+			skipUnknownCheck,
+			widget.NewSeparator(),
 			widget.NewLabel("Extensions (one per line):"),
 			skipExtScroll,
 			widget.NewLabel("Patterns (one per line):"),
@@ -641,7 +647,7 @@ func (g *GUI) openSettingsWindow() {
 
 // saveSettingsFromFormWithAudio saves the configuration from form inputs including audio settings
 func (g *GUI) saveSettingsFromFormWithAudio(imagesEntry, videosEntry, audiosEntry, documentsEntry, unknownEntry, hiddenEntry,
-	originalsEntry, exportsEntry, noExifYearEntry, maxWidthEntry, maxHeightEntry *widget.Entry, enableExportsCheck *widget.Check, jpegQualityEntry, shortVideoThresholdEntry *widget.Entry, livePhotosEnabledCheck *widget.Check, iPhonePatternsEntry, samsungPatternsEntry, livePhotoExtensionsEntry, maxLiveDurationEntry *widget.Entry, screenshotsEnabledCheck *widget.Check, screenshotPatternsEntry, screenshotExtensionsEntry, screenshotFolderEntry, skipExtEntry, skipPatternsEntry *widget.Entry,
+	originalsEntry, exportsEntry, noExifYearEntry, maxWidthEntry, maxHeightEntry *widget.Entry, enableExportsCheck *widget.Check, jpegQualityEntry, shortVideoThresholdEntry *widget.Entry, livePhotosEnabledCheck *widget.Check, iPhonePatternsEntry, samsungPatternsEntry, livePhotoExtensionsEntry, maxLiveDurationEntry *widget.Entry, screenshotsEnabledCheck *widget.Check, screenshotPatternsEntry, screenshotExtensionsEntry, screenshotFolderEntry *widget.Entry, skipUnknownCheck *widget.Check, skipExtEntry, skipPatternsEntry *widget.Entry,
 	audioEntries map[string]struct {
 		folderEntry    *widget.Entry
 		extensionsEntry *widget.Entry
@@ -748,6 +754,9 @@ func (g *GUI) saveSettingsFromFormWithAudio(imagesEntry, videosEntry, audiosEntr
 	if folderName := strings.TrimSpace(screenshotFolderEntry.Text); folderName != "" {
 		g.currentConfig.Screenshots.FolderName = folderName
 	}
+	
+	// Update skip unknown setting
+	g.currentConfig.SkipUnknown = skipUnknownCheck.Checked
 	
 	// Update audio categories
 	for categoryKey, entries := range audioEntries {
