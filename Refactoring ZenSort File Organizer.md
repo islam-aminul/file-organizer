@@ -5082,3 +5082,43 @@ if fo.config.SkipUnknown {
 - **Real-time visibility** of latest processing activity
 
 The implementation provides users control over unknown file handling while defaulting to the safer option of skipping them to avoid cluttering the destination directory.
+
+### User Input
+
+update documents 
+
+*Updated todo list*
+
+*Viewed [README.md](file:///c:/Users/aminu/Workspace/Projects/file-organizer/README.md) *
+
+*Edited relevant file*
+
+*Edited relevant file*
+
+*Edited relevant file*
+
+*Edited relevant file*
+
+*Updated todo list*
+
+### Planner Response
+
+✅ **Documentation Updated Successfully**
+
+## **Changes Made**
+
+### **1. README.md Updates**
+- **Added Screenshot Detection** to Advanced Features list
+- **Added Skip Unknown Files** to Advanced Features list
+- **Updated Configuration Options** with new screenshot and skip unknown settings
+- **Expanded File Classification Section** with detailed descriptions:
+  - Screenshot detection patterns and organization
+  - Skip unknown files behavior and defaults
+- **Updated File Structure** to show Screenshots subfolder and conditional Unknown directory
+
+### **2. Key Documentation Highlights**
+- **Screenshot Detection**: Configurable patterns, extensions, and folder name
+- **Skip Unknown Files**: Default enabled, helps keep destination clean
+- **File Structure**: Shows Screenshots under Images/ and notes Unknown/ only appears when skip is disabled
+
+The documentation now accurately reflects all the new features including screenshot detection, skip unknown files option, and the enhanced file organization structure. Users will have clear understanding of the new capabilities and configuration options.
