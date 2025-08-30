@@ -51,10 +51,10 @@ func ExtractEXIF(filePath string) (*EXIFData, error) {
 		}
 	}
 
-	// Extract date/time
+	// Extract date/time with multiple format support
 	if dateTime, err := x.Get(exif.DateTime); err == nil {
 		if dateTimeStr, err := dateTime.StringVal(); err == nil {
-			if parsedTime, err := time.Parse("2006:01:02 15:04:05", dateTimeStr); err == nil {
+			if parsedTime := parseDateTime(dateTimeStr); !parsedTime.IsZero() {
 				data.DateTime = parsedTime
 				data.HasDateTime = true
 			}
@@ -93,6 +93,37 @@ func IsEditedImage(exifData *EXIFData, config *config.Config) bool {
 	}
 	
 	return false
+}
+
+// parseDateTime attempts to parse datetime string with multiple formats
+func parseDateTime(dateTimeStr string) time.Time {
+	// Try standard EXIF format first: "2006:01:02 15:04:05"
+	if parsedTime, err := time.Parse("2006:01:02 15:04:05", dateTimeStr); err == nil {
+		return parsedTime
+	}
+	
+	// Try ISO format: "2006-01-02 15:04:05"
+	if parsedTime, err := time.Parse("2006-01-02 15:04:05", dateTimeStr); err == nil {
+		return parsedTime
+	}
+	
+	// Try other common formats
+	formats := []string{
+		"2006:01:02T15:04:05",
+		"2006-01-02T15:04:05",
+		"2006:01:02 15:04:05Z",
+		"2006-01-02 15:04:05Z",
+		"2006:01:02T15:04:05Z",
+		"2006-01-02T15:04:05Z",
+	}
+	
+	for _, format := range formats {
+		if parsedTime, err := time.Parse(format, dateTimeStr); err == nil {
+			return parsedTime
+		}
+	}
+	
+	return time.Time{} // Return zero time if no format matches
 }
 
 // GetImageDestinationPath generates the destination path based on EXIF data

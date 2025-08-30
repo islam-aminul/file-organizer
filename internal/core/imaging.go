@@ -33,7 +33,7 @@ func (ip *ImageProcessor) ProcessImage(srcPath, destPath string, exifData *EXIFD
 	}
 
 	// Generate export if enabled and it's a supported format
-	if ip.config.Processing.EnableImageExports && ip.shouldCreateExport(srcPath) {
+	if ip.config.Processing.EnableImageExports && ip.shouldCreateExport(srcPath, exifData) {
 		exportPath := ip.getExportPath(destPath, exifData)
 		if err := ip.createExport(srcPath, exportPath, exifData); err != nil {
 			// Log error but don't fail the whole operation
@@ -146,7 +146,12 @@ func (ip *ImageProcessor) applyOrientation(img image.Image, orientation int) ima
 }
 
 // shouldCreateExport determines if an export should be created for this image
-func (ip *ImageProcessor) shouldCreateExport(filePath string) bool {
+func (ip *ImageProcessor) shouldCreateExport(filePath string, exifData *EXIFData) bool {
+	// Skip exports for edited images
+	if IsEditedImage(exifData, ip.config) {
+		return false
+	}
+	
 	ext := strings.ToLower(filepath.Ext(filePath))
 	// Create exports for common image formats
 	exportFormats := []string{".jpg", ".jpeg", ".png", ".tiff", ".tif", ".bmp", ".webp"}
