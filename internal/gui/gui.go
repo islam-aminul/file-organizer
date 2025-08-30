@@ -32,17 +32,20 @@ type GUI struct {
 	statusLabel    *widget.Label
 	logText        *widget.Entry
 	startButton    *widget.Button
+	pauseButton    *widget.Button
 	stopButton     *widget.Button
 	settingsButton *widget.Button
 	processor      *core.FileProcessor
 	ctx            context.Context
 	cancel         context.CancelFunc
+	pauseChan      chan bool
 	progressChan   chan core.ProgressUpdate
 	logBuffer      []string
 	maxLogLines    int
 	currentConfig  *config.Config
 	lastSourceDir  string
 	lastDestDir    string
+	isPaused       bool
 }
 
 // Launch starts the GUI application
@@ -73,6 +76,23 @@ func NewGUI() *GUI {
 	gui.loadLastUsedDirectories()
 	
 	return gui
+}
+
+// togglePause toggles pause/resume functionality
+func (g *GUI) togglePause() {
+	if g.isPaused {
+		// Resume processing
+		g.pauseChan <- false
+		g.pauseButton.SetText("Pause")
+		g.statusLabel.SetText("Resuming...")
+		g.isPaused = false
+	} else {
+		// Pause processing
+		g.pauseChan <- true
+		g.pauseButton.SetText("Resume")
+		g.statusLabel.SetText("Paused")
+		g.isPaused = true
+	}
 }
 
 // loadLastUsedDirectories loads the last used directories from app preferences
@@ -121,18 +141,24 @@ func (g *GUI) setupUI() {
 	logScroll := container.NewScroll(g.logText)
 	logScroll.SetMinSize(fyne.NewSize(0, 200))
 	
-	// Control buttons
+	// Control buttons with colors
 	g.settingsButton = widget.NewButton("Settings", g.showSettings)
-	g.settingsButton.Disable() // Initially disabled until destination is selected
+	g.settingsButton.Disable() // Disabled until destination is selected
+	g.settingsButton.Importance = widget.LowImportance
 	
 	g.startButton = widget.NewButton("Start Organization", g.startProcessing)
+	g.startButton.Disable() // Disabled until destination is selected
 	g.startButton.Importance = widget.HighImportance
-	g.startButton.Disable() // Initially disabled until destination is selected
+	
+	g.pauseButton = widget.NewButton("Pause", g.togglePause)
+	g.pauseButton.Disable()
+	g.pauseButton.Importance = widget.MediumImportance
 	
 	g.stopButton = widget.NewButton("Stop", g.stopProcessing)
 	g.stopButton.Disable()
+	g.stopButton.Importance = widget.DangerImportance
 	
-	buttonContainer := container.NewHBox(g.settingsButton, g.startButton, g.stopButton)
+	buttonContainer := container.NewHBox(g.settingsButton, g.startButton, g.pauseButton, g.stopButton)
 	
 	// Create form layout
 	form := container.NewVBox(
@@ -604,17 +630,20 @@ func (g *GUI) startProcessing() {
 	// Create context for cancellation
 	g.ctx, g.cancel = context.WithCancel(context.Background())
 	
-	// Create progress channel
+	// Create progress and pause channels
 	g.progressChan = make(chan core.ProgressUpdate, 100)
+	g.pauseChan = make(chan bool, 1)
 	
 	// Update UI state - disable all input fields during processing
 	g.startButton.Disable()
+	g.pauseButton.Enable()
 	g.stopButton.Enable()
 	g.sourceEntry.Disable()
 	g.destEntry.Disable()
 	g.sourceBrowseBtn.Disable()
 	g.destBrowseBtn.Disable()
 	g.settingsButton.Disable()
+	g.isPaused = false
 	g.progressBar.SetValue(0)
 	g.statusLabel.SetText("Initializing...")
 	g.logBuffer = make([]string, 0) // Clear log buffer
@@ -627,12 +656,14 @@ func (g *GUI) startProcessing() {
 	go func() {
 		defer func() {
 			g.startButton.Enable()
+			g.pauseButton.Disable()
 			g.stopButton.Disable()
 			g.sourceEntry.Enable()
 			g.destEntry.Enable()
 			g.sourceBrowseBtn.Enable()
 			g.destBrowseBtn.Enable()
 			g.settingsButton.Enable()
+			g.isPaused = false
 			close(g.progressChan)
 		}()
 		
@@ -655,14 +686,30 @@ func (g *GUI) startProcessing() {
 			}
 		}()
 		
-		// Start processing
-		err = processor.ProcessDirectory(g.ctx, sourceDir)
+		// Start processing with pause support
+		err = g.processWithPauseSupport(processor, sourceDir)
 		if err != nil {
-			g.logMessage(fmt.Sprintf("Error: Processing failed: %v", err))
+			if err == context.Canceled {
+				g.logMessage("Processing stopped by user")
+			} else {
+				g.logMessage(fmt.Sprintf("Error: %v", err))
+			}
 		} else {
 			g.logMessage("Processing completed successfully!")
 		}
 	}()
+}
+
+// processWithPauseSupport handles file processing with pause/resume capability
+func (g *GUI) processWithPauseSupport(processor *core.FileProcessor, sourceDir string) error {
+	// Start the actual processing in a separate goroutine
+	processingDone := make(chan error, 1)
+	go func() {
+		processingDone <- processor.ProcessDirectory(g.ctx, sourceDir)
+	}()
+	
+	// Wait for processing to complete
+	return <-processingDone
 }
 
 // stopProcessing cancels the current operation

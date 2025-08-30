@@ -124,95 +124,59 @@ GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build -o zensort-linux main.go
 ./zensort -cli -source /path/to/source -dest /path/to/destination
 
 # With custom configuration
-./zensort -source /path/to/source -dest /path/to/destination -config /path/to/config.json
 ```
 
-### Platform-specific Examples
+## Configuration
 
-#### Windows
-```powershell
-# GUI Mode
-.\zensort.exe
+ZenSort uses JSON configuration files to customize organization behavior. The configuration is automatically saved in the destination directory as `zensort-config.json`.
 
-# CLI Mode
-.\zensort.exe -source "C:\Source\Folder" -dest "C:\Organized\Files"
-```
+### Configuration Options
 
-#### macOS/Linux
-```bash
-# GUI Mode
-./zensort
+- **Directory Names**: Customize folder names for different file types
+- **Image Organization**: Configure EXIF-based sorting and export settings
+- **Audio Categories**: Define custom audio file categorization with patterns and extensions
+- **Skip Files**: Specify files, patterns, and directories to ignore
+- **Processing Settings**: Adjust image processing parameters and buffer sizes
 
-# CLI Mode
-./zensort -source ~/Documents/ToOrganize -dest ~/Documents/Organized
-```
+### Audio Categories
+- **Songs**: Music files with artist/album organization
+- **Voice Recordings**: Personal voice memos and notes
+- **Call Recordings**: Phone calls and communication audio
+- **Other Audio**: Podcasts, audiobooks, lectures, interviews
 
-### Configuration
-
-ZenSort automatically creates a default configuration file (`zensort-config.json`) on first run. You can customize:
-
-```json
-{
-  "directories": {
-    "images": "Images",
-    "videos": "Videos",
-    "audios": "Audios",
-    "documents": "Documents",
-    "unknown": "Unknown",
-    "hidden": "Hidden"
-  },
-  "image_dirs": {
-    "originals": "Originals",
-    "exports": "Exports"
-  },
-  "skip_files": {
-    "extensions": [".tmp", ".temp", ".log", ".cache"],
-    "patterns": ["~*", ".DS_Store", "Thumbs.db"],
-    "directories": [".git", ".svn", "node_modules"]
-  },
-  "processing": {
-    "max_image_width": 3840,
-    "max_image_height": 2160,
-    "buffer_size": 1048576,
-    "hash_chunk_size": 65536
-  }
-}
-```
-
-## Output Structure
-
-ZenSort creates an organized directory structure in your destination folder:
+## File Organization Structure
 
 ```
-destination/
+Destination/
 ├── Images/
 │   ├── Originals/
-│   │   ├── Canon - EOS R5/
-│   │   │   └── 2024/
-│   │   └── Collections/
-│   ├── Exports/
-│   │   └── 2024/
-│   └── Hidden/
+│   │   ├── 2023/
+│   │   │   ├── Canon_EOS_R5/
+│   │   │   └── iPhone_14_Pro/
+│   │   ├── Collections/ (no EXIF data)
+│   │   └── 0000/ (configurable no-EXIF folder)
+│   ├── Exports/ (resized images)
+│   └── Hidden/ (hidden images - no exports)
 ├── Videos/
+│   ├── 2023/
 │   ├── 2024/
 │   └── Hidden/
 ├── Audios/
 │   ├── Songs/
 │   ├── Voice Recordings/
+│   ├── Call Recordings/
+│   ├── Other Audio/
 │   └── Hidden/
 ├── Documents/
 │   ├── PDF/
-│   ├── Word/
+│   ├── DOCX/
+│   ├── TXT/
 │   └── Hidden/
 ├── Unknown/
-├── zensort-logs/
-│   ├── errors_2024-08-29_22-30-15.log
-│   ├── operations_2024-08-29_22-30-15.log
-│   ├── zensort-report_2024-08-29_22-35-42.json
-│   └── zensort-report_2024-08-29_22-35-42.txt
-└── zensort-db.json
+└── zensort-db/ (BadgerDB database)
 ```
 
+## Database
 ## Performance Features
 
 ### Auto-Scaling Worker Pools

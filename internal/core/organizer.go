@@ -115,19 +115,17 @@ func (fo *FileOrganizer) getDestinationPath(sourcePath string, fileType FileType
 	case FileTypeImage:
 		categoryDir = fo.config.Directories.Images
 		if isHidden {
+			// Hidden images stay in hidden directory only - no export
 			return filepath.Join(fo.destDir, categoryDir, fo.config.Directories.Hidden, filename), nil
 		}
 		
 		// For images, use EXIF-based organization
-		if IsImageFile(filename) {
-			exifData, err := ExtractEXIF(sourcePath)
-			if err != nil {
-				// If EXIF extraction fails, use Collections
-				return filepath.Join(fo.destDir, categoryDir, fo.config.ImageDirs.Originals, "Collections", filename), nil
-			}
-			return GetImageDestinationPath(fo.destDir, filename, exifData, fo.config, false), nil
+		exifData, err := ExtractEXIF(sourcePath)
+		if err != nil {
+			// No EXIF data, use collections folder
+			return filepath.Join(fo.destDir, categoryDir, fo.config.ImageDirs.Originals, "Collections", filename), nil
 		}
-		return filepath.Join(fo.destDir, categoryDir, fo.config.ImageDirs.Originals, "Collections", filename), nil
+		return GetImageDestinationPath(fo.destDir, filename, exifData, fo.config, false), nil
 		
 	case FileTypeVideo:
 		categoryDir = fo.config.Directories.Videos
