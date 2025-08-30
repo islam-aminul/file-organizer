@@ -37,10 +37,12 @@ type Config struct {
 	} `json:"skip_files"`
 	
 	Processing struct {
-		MaxImageWidth  int `json:"max_image_width"`
-		MaxImageHeight int `json:"max_image_height"`
-		BufferSize     int `json:"buffer_size"`
-		HashChunkSize  int `json:"hash_chunk_size"`
+		MaxImageWidth    int  `json:"max_image_width"`
+		MaxImageHeight   int  `json:"max_image_height"`
+		BufferSize       int  `json:"buffer_size"`
+		HashChunkSize    int  `json:"hash_chunk_size"`
+		EnableImageExports bool `json:"enable_image_exports"`
+		JPEGQuality      int  `json:"jpeg_quality"`
 	} `json:"processing"`
 }
 
@@ -118,6 +120,8 @@ func DefaultConfig() *Config {
 	config.Processing.MaxImageHeight = 2160
 	config.Processing.BufferSize = 1024 * 1024 // 1MB
 	config.Processing.HashChunkSize = 64 * 1024 // 64KB
+	config.Processing.EnableImageExports = true // Enabled by default
+	config.Processing.JPEGQuality = 85 // Reduced from 90 for faster encoding
 	
 	return config
 }

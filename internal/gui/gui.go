@@ -322,6 +322,12 @@ func (g *GUI) openSettingsWindow() {
 	maxHeightEntry := widget.NewEntry()
 	maxHeightEntry.SetText(fmt.Sprintf("%d", g.currentConfig.Processing.MaxImageHeight))
 	
+	enableExportsCheck := widget.NewCheck("Enable Image Exports (slower processing)", nil)
+	enableExportsCheck.SetChecked(g.currentConfig.Processing.EnableImageExports)
+	
+	jpegQualityEntry := widget.NewEntry()
+	jpegQualityEntry.SetText(fmt.Sprintf("%d", g.currentConfig.Processing.JPEGQuality))
+	
 	// Skip files extensions
 	skipExtEntry := widget.NewMultiLineEntry()
 	skipExtEntry.SetText(strings.Join(g.currentConfig.SkipFiles.Extensions, "\n"))
@@ -382,7 +388,7 @@ func (g *GUI) openSettingsWindow() {
 	// Buttons
 	saveButton := widget.NewButton("Save Settings", func() {
 		g.saveSettingsFromFormWithAudio(imagesEntry, videosEntry, audiosEntry, documentsEntry, unknownEntry, hiddenEntry,
-			originalsEntry, exportsEntry, noExifYearEntry, maxWidthEntry, maxHeightEntry, skipExtEntry, skipPatternsEntry, audioEntries)
+			originalsEntry, exportsEntry, noExifYearEntry, maxWidthEntry, maxHeightEntry, enableExportsCheck, jpegQualityEntry, skipExtEntry, skipPatternsEntry, audioEntries)
 		settingsWindow.Close()
 	})
 	saveButton.Importance = widget.HighImportance
@@ -425,6 +431,13 @@ func (g *GUI) openSettingsWindow() {
 				widget.NewLabel("Max Image Width:"), maxWidthEntry,
 				widget.NewLabel("Max Image Height:"), maxHeightEntry,
 			),
+			widget.NewSeparator(),
+			container.NewVBox(
+				enableExportsCheck,
+				container.NewGridWithColumns(2,
+					widget.NewLabel("JPEG Quality (1-100):"), jpegQualityEntry,
+				),
+			),
 		)),
 		
 		widget.NewCard("Audio Categories", "", func() *container.Scroll {
@@ -450,7 +463,7 @@ func (g *GUI) openSettingsWindow() {
 
 // saveSettingsFromFormWithAudio saves the configuration from form inputs including audio settings
 func (g *GUI) saveSettingsFromFormWithAudio(imagesEntry, videosEntry, audiosEntry, documentsEntry, unknownEntry, hiddenEntry,
-	originalsEntry, exportsEntry, noExifYearEntry, maxWidthEntry, maxHeightEntry, skipExtEntry, skipPatternsEntry *widget.Entry,
+	originalsEntry, exportsEntry, noExifYearEntry, maxWidthEntry, maxHeightEntry *widget.Entry, enableExportsCheck *widget.Check, jpegQualityEntry, skipExtEntry, skipPatternsEntry *widget.Entry,
 	audioEntries map[string]struct {
 		folderEntry    *widget.Entry
 		extensionsEntry *widget.Entry
@@ -476,6 +489,12 @@ func (g *GUI) saveSettingsFromFormWithAudio(imagesEntry, videosEntry, audiosEntr
 	}
 	if height, err := strconv.Atoi(maxHeightEntry.Text); err == nil {
 		g.currentConfig.Processing.MaxImageHeight = height
+	}
+	
+	// Update export settings
+	g.currentConfig.Processing.EnableImageExports = enableExportsCheck.Checked
+	if quality, err := strconv.Atoi(jpegQualityEntry.Text); err == nil && quality > 0 && quality <= 100 {
+		g.currentConfig.Processing.JPEGQuality = quality
 	}
 	
 	// Update audio categories

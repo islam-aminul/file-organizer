@@ -29,8 +29,8 @@ func (ip *ImageProcessor) ProcessImage(srcPath, destPath string, exifData *EXIFD
 		return fmt.Errorf("failed to copy original: %w", err)
 	}
 
-	// Generate export if it's a supported format
-	if ip.shouldCreateExport(srcPath) {
+	// Generate export if enabled and it's a supported format
+	if ip.config.Processing.EnableImageExports && ip.shouldCreateExport(srcPath) {
 		exportPath := ip.getExportPath(destPath, exifData)
 		if err := ip.createExport(srcPath, exportPath, exifData); err != nil {
 			// Log error but don't fail the whole operation
@@ -91,7 +91,7 @@ func (ip *ImageProcessor) createExport(srcPath, exportPath string, exifData *EXI
 			newWidth = int(float64(maxHeight) * aspectRatio)
 		}
 		
-		resized = imaging.Resize(src, newWidth, newHeight, imaging.Lanczos)
+		resized = imaging.Resize(src, newWidth, newHeight, imaging.Linear)
 	}
 
 	// Apply EXIF orientation correction if needed
@@ -106,8 +106,12 @@ func (ip *ImageProcessor) createExport(srcPath, exportPath string, exifData *EXI
 	}
 	defer outFile.Close()
 
-	// Save with 90% quality
-	return jpeg.Encode(outFile, resized, &jpeg.Options{Quality: 90})
+	// Save with configurable quality
+	quality := ip.config.Processing.JPEGQuality
+	if quality <= 0 || quality > 100 {
+		quality = 85 // Default fallback
+	}
+	return jpeg.Encode(outFile, resized, &jpeg.Options{Quality: quality})
 }
 
 // applyOrientation applies EXIF orientation correction
