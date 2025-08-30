@@ -494,6 +494,13 @@ func (g *GUI) openSettingsWindow() {
 	skipUnknownCheck := widget.NewCheck("Skip Unknown File Types", nil)
 	skipUnknownCheck.SetChecked(g.currentConfig.SkipUnknown)
 	
+	// Edited images settings
+	editedImagesEntry := widget.NewEntry()
+	editedImagesEntry.SetText(strings.Join(g.currentConfig.EditedImages.SoftwarePatterns, ", "))
+	
+	editedImagesFolderEntry := widget.NewEntry()
+	editedImagesFolderEntry.SetText(g.currentConfig.EditedImages.FolderName)
+	
 	// Skip files extensions
 	skipExtEntry := widget.NewMultiLineEntry()
 	skipExtEntry.SetText(strings.Join(g.currentConfig.SkipFiles.Extensions, "\n"))
@@ -554,7 +561,7 @@ func (g *GUI) openSettingsWindow() {
 	// Buttons
 	saveButton := widget.NewButton("Save Settings", func() {
 		g.saveSettingsFromFormWithAudio(imagesEntry, videosEntry, audiosEntry, documentsEntry, unknownEntry, hiddenEntry,
-			originalsEntry, exportsEntry, noExifYearEntry, maxWidthEntry, maxHeightEntry, enableExportsCheck, jpegQualityEntry, shortVideoThresholdEntry, livePhotosEnabledCheck, iPhonePatternsEntry, samsungPatternsEntry, livePhotoExtensionsEntry, maxLiveDurationEntry, screenshotsEnabledCheck, screenshotPatternsEntry, screenshotExtensionsEntry, screenshotFolderEntry, skipUnknownCheck, skipExtEntry, skipPatternsEntry, audioEntries)
+			originalsEntry, exportsEntry, noExifYearEntry, maxWidthEntry, maxHeightEntry, enableExportsCheck, jpegQualityEntry, shortVideoThresholdEntry, livePhotosEnabledCheck, iPhonePatternsEntry, samsungPatternsEntry, livePhotoExtensionsEntry, maxLiveDurationEntry, screenshotsEnabledCheck, screenshotPatternsEntry, screenshotExtensionsEntry, screenshotFolderEntry, editedImagesEntry, editedImagesFolderEntry, skipUnknownCheck, skipExtEntry, skipPatternsEntry, audioEntries)
 		settingsWindow.Close()
 	})
 	saveButton.Importance = widget.HighImportance
@@ -620,6 +627,11 @@ func (g *GUI) openSettingsWindow() {
 				widget.NewLabel("Screenshot Extensions:"), screenshotExtensionsEntry,
 				widget.NewLabel("Screenshot Folder Name:"), screenshotFolderEntry,
 			),
+			widget.NewSeparator(),
+			container.NewGridWithColumns(2,
+				widget.NewLabel("Edited Image Software Patterns:"), editedImagesEntry,
+				widget.NewLabel("Edited Images Folder Name:"), editedImagesFolderEntry,
+			),
 		)),
 		
 		widget.NewCard("Audio Categories", "", func() *container.Scroll {
@@ -647,7 +659,7 @@ func (g *GUI) openSettingsWindow() {
 
 // saveSettingsFromFormWithAudio saves the configuration from form inputs including audio settings
 func (g *GUI) saveSettingsFromFormWithAudio(imagesEntry, videosEntry, audiosEntry, documentsEntry, unknownEntry, hiddenEntry,
-	originalsEntry, exportsEntry, noExifYearEntry, maxWidthEntry, maxHeightEntry *widget.Entry, enableExportsCheck *widget.Check, jpegQualityEntry, shortVideoThresholdEntry *widget.Entry, livePhotosEnabledCheck *widget.Check, iPhonePatternsEntry, samsungPatternsEntry, livePhotoExtensionsEntry, maxLiveDurationEntry *widget.Entry, screenshotsEnabledCheck *widget.Check, screenshotPatternsEntry, screenshotExtensionsEntry, screenshotFolderEntry *widget.Entry, skipUnknownCheck *widget.Check, skipExtEntry, skipPatternsEntry *widget.Entry,
+	originalsEntry, exportsEntry, noExifYearEntry, maxWidthEntry, maxHeightEntry *widget.Entry, enableExportsCheck *widget.Check, jpegQualityEntry, shortVideoThresholdEntry *widget.Entry, livePhotosEnabledCheck *widget.Check, iPhonePatternsEntry, samsungPatternsEntry, livePhotoExtensionsEntry, maxLiveDurationEntry *widget.Entry, screenshotsEnabledCheck *widget.Check, screenshotPatternsEntry, screenshotExtensionsEntry, screenshotFolderEntry *widget.Entry, editedImagesEntry, editedImagesFolderEntry *widget.Entry, skipUnknownCheck *widget.Check, skipExtEntry, skipPatternsEntry *widget.Entry,
 	audioEntries map[string]struct {
 		folderEntry    *widget.Entry
 		extensionsEntry *widget.Entry
@@ -757,6 +769,19 @@ func (g *GUI) saveSettingsFromFormWithAudio(imagesEntry, videosEntry, audiosEntr
 	
 	// Update skip unknown setting
 	g.currentConfig.SkipUnknown = skipUnknownCheck.Checked
+	
+	// Update edited images settings
+	if patternsText := strings.TrimSpace(editedImagesEntry.Text); patternsText != "" {
+		patterns := strings.Split(patternsText, ",")
+		for i, pattern := range patterns {
+			patterns[i] = strings.TrimSpace(pattern)
+		}
+		g.currentConfig.EditedImages.SoftwarePatterns = patterns
+	}
+	
+	if folderName := strings.TrimSpace(editedImagesFolderEntry.Text); folderName != "" {
+		g.currentConfig.EditedImages.FolderName = folderName
+	}
 	
 	// Update audio categories
 	for categoryKey, entries := range audioEntries {
@@ -1149,9 +1174,6 @@ func (g *GUI) flushFolderLog() {
 		g.logMessage(fmt.Sprintf("📁 %s: %s", folderName, g.folderFiles[0]))
 	} else {
 		fileList := strings.Join(g.folderFiles, ", ")
-		if len(fileList) > 100 {
-			fileList = fileList[:97] + "..."
-		}
 		g.logMessage(fmt.Sprintf("📁 %s (%d files): %s", folderName, len(g.folderFiles), fileList))
 	}
 	

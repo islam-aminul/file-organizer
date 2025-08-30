@@ -62,6 +62,11 @@ type Config struct {
 	} `json:"screenshots"`
 
 	SkipUnknown bool `json:"skip_unknown"`
+
+	EditedImages struct {
+		SoftwarePatterns []string `json:"software_patterns"`
+		FolderName       string   `json:"folder_name"`
+	} `json:"edited_images"`
 }
 
 // DefaultConfig returns a configuration with default values
@@ -157,6 +162,10 @@ func DefaultConfig() *Config {
 	
 	// Skip unknown files by default
 	config.SkipUnknown = true
+	
+	// Default edited images settings
+	config.EditedImages.SoftwarePatterns = []string{"photoshop", "adobe", "lightroom", "gimp", "paint.net", "canva", "pixlr", "photo editor", "windows photo"}
+	config.EditedImages.FolderName = "Edited"
 	
 	return config
 }

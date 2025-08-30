@@ -149,6 +149,12 @@ func (fo *FileOrganizer) getDestinationPath(sourcePath string, fileType FileType
 			// No EXIF data, use collections folder
 			return filepath.Join(fo.destDir, categoryDir, fo.config.ImageDirs.Originals, "Collections", filename), nil
 		}
+		
+		// Check if image has been edited (contains photo editing software in EXIF)
+		if IsEditedImage(exifData, fo.config) {
+			return filepath.Join(fo.destDir, categoryDir, fo.config.EditedImages.FolderName, filename), nil
+		}
+		
 		return GetImageDestinationPath(fo.destDir, filename, exifData, fo.config, false), nil
 		
 	case FileTypeVideo:

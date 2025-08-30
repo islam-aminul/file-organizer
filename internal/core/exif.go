@@ -18,6 +18,7 @@ type EXIFData struct {
 	DateTime     time.Time
 	HasDateTime  bool
 	Orientation  int
+	Software     string
 }
 
 // ExtractEXIF extracts EXIF data from an image file
@@ -67,7 +68,31 @@ func ExtractEXIF(filePath string) (*EXIFData, error) {
 		}
 	}
 
+	// Extract software
+	if software, err := x.Get(exif.Software); err == nil {
+		if softwareStr, err := software.StringVal(); err == nil {
+			data.Software = strings.TrimSpace(softwareStr)
+		}
+	}
+
 	return data, nil
+}
+
+// IsEditedImage checks if an image has been edited based on EXIF software field
+func IsEditedImage(exifData *EXIFData, config *config.Config) bool {
+	if exifData.Software == "" {
+		return false
+	}
+	
+	// Check against configured editing software patterns
+	softwareLower := strings.ToLower(exifData.Software)
+	for _, pattern := range config.EditedImages.SoftwarePatterns {
+		if strings.Contains(softwareLower, strings.ToLower(pattern)) {
+			return true
+		}
+	}
+	
+	return false
 }
 
 // GetImageDestinationPath generates the destination path based on EXIF data
