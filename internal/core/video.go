@@ -63,7 +63,8 @@ func (va *VideoAnalyzer) estimateDurationFromSize(filePath string) (time.Duratio
 	
 	// For other videos, we can't reliably estimate without metadata
 	// Return a duration that won't trigger short video classification
-	return 60 * time.Second, nil
+	// Use a high value to ensure videos with unknown duration go to regular Videos folder
+	return 300 * time.Second, nil // 5 minutes - well above typical short video thresholds
 }
 
 // IsShortVideo determines if a video is shorter than the threshold
@@ -80,5 +81,10 @@ func (va *VideoAnalyzer) IsShortVideo(filePath string, thresholdSeconds int) boo
 	}
 	
 	threshold := time.Duration(thresholdSeconds) * time.Second
-	return duration <= threshold
+	
+	// Debug logging to help identify the issue
+	fmt.Printf("DEBUG: Video %s - Duration: %.2f seconds, Threshold: %d seconds, IsShort: %v\n", 
+		filePath, duration.Seconds(), thresholdSeconds, duration < threshold)
+	
+	return duration < threshold
 }
