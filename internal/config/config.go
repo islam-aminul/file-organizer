@@ -46,13 +46,13 @@ type Config struct {
 		ShortVideoThreshold int `json:"short_video_threshold_seconds"`
 	} `json:"processing"`
 	
-	LivePhotos struct {
+	MotionPhotos struct {
 		Enabled           bool     `json:"enabled"`
 		IPhonePatterns    []string `json:"iphone_patterns"`
 		SamsungPatterns   []string `json:"samsung_patterns"`
 		Extensions        []string `json:"extensions"`
 		MaxDurationSeconds int     `json:"max_duration_seconds"`
-	} `json:"live_photos"`
+	} `json:"motion_photos"`
 }
 
 // DefaultConfig returns a configuration with default values
@@ -133,12 +133,12 @@ func DefaultConfig() *Config {
 	config.Processing.JPEGQuality = 85 // Reduced from 90 for faster encoding
 	config.Processing.ShortVideoThreshold = 30 // Videos under 30 seconds go to Short Videos folder
 	
-	// Default Live Photos settings
-	config.LivePhotos.Enabled = true
-	config.LivePhotos.IPhonePatterns = []string{"IMG_", "LIVE_", "_LIVE"}
-	config.LivePhotos.SamsungPatterns = []string{"MOTION_", "_MOTION", "MVIMG_"}
-	config.LivePhotos.Extensions = []string{".mov", ".mp4", ".jpg", ".jpeg", ".heic"}
-	config.LivePhotos.MaxDurationSeconds = 10 // Live Photos are typically 3-5 seconds, allow up to 10
+	// Default Motion Photos settings
+	config.MotionPhotos.Enabled = true
+	config.MotionPhotos.IPhonePatterns = []string{"IMG_", "LIVE_", "_LIVE"}
+	config.MotionPhotos.SamsungPatterns = []string{"MOTION_", "_MOTION", "MVIMG_"}
+	config.MotionPhotos.Extensions = []string{".mov", ".mp4"}
+	config.MotionPhotos.MaxDurationSeconds = 10 // Motion Photos are typically 3-5 seconds, allow up to 10
 	
 	return config
 }

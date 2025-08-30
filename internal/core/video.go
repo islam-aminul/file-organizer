@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -31,6 +32,10 @@ func (va *VideoAnalyzer) GetVideoDuration(filePath string) (time.Duration, error
 func (va *VideoAnalyzer) getFFProbeDuration(filePath string) (time.Duration, error) {
 	// Check if ffprobe is available
 	cmd := exec.Command("ffprobe", "-v", "quiet", "-show_entries", "format=duration", "-of", "csv=p=0", filePath)
+	
+	// Hide console window on Windows to prevent flashing
+	hideConsoleWindow(cmd)
+	
 	output, err := cmd.Output()
 	if err != nil {
 		return 0, fmt.Errorf("ffprobe not available or failed: %w", err)
@@ -44,6 +49,11 @@ func (va *VideoAnalyzer) getFFProbeDuration(filePath string) (time.Duration, err
 	}
 	
 	return time.Duration(durationFloat * float64(time.Second)), nil
+}
+
+// hideConsoleWindow hides the console window on Windows to prevent flashing
+func hideConsoleWindow(cmd *exec.Cmd) {
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 }
 
 // estimateDurationFromSize provides a rough estimate based on file size

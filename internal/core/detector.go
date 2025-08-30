@@ -188,26 +188,43 @@ func (d *FileTypeDetector) IsLiveOrMotionPhoto(filePath string) bool {
 	return d.isLiveOrMotionPhoto(filePath)
 }
 
-// isLiveOrMotionPhoto detects iPhone Live Photos and Samsung Motion Photos using config
-func (d *FileTypeDetector) isLiveOrMotionPhoto(filePath string) bool {
+// IsMotionPhoto checks if a video file is a Motion Photo
+func (d *FileTypeDetector) IsMotionPhoto(filePath string) bool {
+	// Only check video files for Motion Photos
+	fileType := d.DetectFileType(filePath)
+	if fileType != FileTypeVideo {
+		return false
+	}
+	
 	// Use config if available, otherwise fall back to defaults
-	if d.config != nil && d.config.LivePhotos.Enabled {
-		return d.isLiveOrMotionPhotoWithConfig(filePath, &d.config.LivePhotos)
+	if d.config != nil && d.config.MotionPhotos.Enabled {
+		return d.isMotionPhotoWithConfig(filePath, &d.config.MotionPhotos)
 	}
 	
 	// Fallback to hardcoded patterns if no config
-	return d.isLiveOrMotionPhotoFallback(filePath)
+	return d.isMotionPhotoFallback(filePath)
 }
 
-// isLiveOrMotionPhotoWithConfig uses configuration-based detection
-func (d *FileTypeDetector) isLiveOrMotionPhotoWithConfig(filePath string, liveConfig *struct {
+// isLiveOrMotionPhoto detects iPhone Live Photos and Samsung Motion Photos using config
+func (d *FileTypeDetector) isLiveOrMotionPhoto(filePath string) bool {
+	// Use config if available, otherwise fall back to defaults
+	if d.config != nil && d.config.MotionPhotos.Enabled {
+		return d.isMotionPhotoWithConfig(filePath, &d.config.MotionPhotos)
+	}
+	
+	// Fallback to hardcoded patterns if no config
+	return d.isMotionPhotoFallback(filePath)
+}
+
+// isMotionPhotoWithConfig uses configuration-based detection for Motion Photos
+func (d *FileTypeDetector) isMotionPhotoWithConfig(filePath string, motionConfig *struct {
 	Enabled           bool     `json:"enabled"`
 	IPhonePatterns    []string `json:"iphone_patterns"`
 	SamsungPatterns   []string `json:"samsung_patterns"`
 	Extensions        []string `json:"extensions"`
 	MaxDurationSeconds int     `json:"max_duration_seconds"`
 }) bool {
-	if !liveConfig.Enabled {
+	if !motionConfig.Enabled {
 		return false
 	}
 	
@@ -216,7 +233,7 @@ func (d *FileTypeDetector) isLiveOrMotionPhotoWithConfig(filePath string, liveCo
 	
 	// Check if extension is supported
 	extensionSupported := false
-	for _, supportedExt := range liveConfig.Extensions {
+	for _, supportedExt := range motionConfig.Extensions {
 		if ext == strings.ToLower(supportedExt) {
 			extensionSupported = true
 			break
@@ -227,14 +244,14 @@ func (d *FileTypeDetector) isLiveOrMotionPhotoWithConfig(filePath string, liveCo
 	}
 	
 	// Check iPhone patterns
-	for _, pattern := range liveConfig.IPhonePatterns {
+	for _, pattern := range motionConfig.IPhonePatterns {
 		if strings.Contains(filename, strings.ToLower(pattern)) {
 			return true
 		}
 	}
 	
 	// Check Samsung patterns
-	for _, pattern := range liveConfig.SamsungPatterns {
+	for _, pattern := range motionConfig.SamsungPatterns {
 		if strings.Contains(filename, strings.ToLower(pattern)) {
 			return true
 		}
@@ -243,8 +260,8 @@ func (d *FileTypeDetector) isLiveOrMotionPhotoWithConfig(filePath string, liveCo
 	return false
 }
 
-// isLiveOrMotionPhotoFallback provides fallback detection when no config is available
-func (d *FileTypeDetector) isLiveOrMotionPhotoFallback(filePath string) bool {
+// isMotionPhotoFallback provides fallback detection when no config is available
+func (d *FileTypeDetector) isMotionPhotoFallback(filePath string) bool {
 	filename := strings.ToLower(filepath.Base(filePath))
 	ext := strings.ToLower(filepath.Ext(filePath))
 	
@@ -268,13 +285,7 @@ func (d *FileTypeDetector) isLiveOrMotionPhotoFallback(filePath string) bool {
 		}
 	}
 	
-	// Motion photo JPEG files
-	if ext == ".jpg" || ext == ".jpeg" {
-		if strings.Contains(filename, "motion") ||
-		   strings.Contains(filename, "_motion") {
-			return true
-		}
-	}
+	// Remove image file detection - Motion Photos are video-only
 	
 	return false
 }

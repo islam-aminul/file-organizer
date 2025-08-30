@@ -20,6 +20,8 @@ ZenSort is a powerful, cross-platform file organization application built in Go 
 
 ### Advanced Features
 - **Configurable Everything**: JSON configuration for all directory names and settings
+- **Motion Photos Detection**: Automatic detection and organization of iPhone/Samsung Motion Photos
+- **Short Video Classification**: Duration-based detection and separate organization of short videos
 - **Skip Patterns**: Ignore files by extensions, patterns, or directory paths
 - **Detailed Logging**: Comprehensive error and operation logs in `zensort-logs/` directory
 - **Status Reports**: JSON and TXT reports with statistics stored in `zensort-logs/` folder
@@ -134,9 +136,29 @@ ZenSort uses JSON configuration files to customize organization behavior. The co
 
 - **Directory Names**: Customize folder names for different file types
 - **Image Organization**: Configure EXIF-based sorting and export settings
+- **Motion Photos**: Configure iPhone/Samsung pattern detection, extensions, and duration limits
+- **Short Videos**: Set duration threshold for short video classification
 - **Audio Categories**: Define custom audio file categorization with patterns and extensions
 - **Skip Files**: Specify files, patterns, and directories to ignore
 - **Processing Settings**: Adjust image processing parameters and buffer sizes
+
+### Motion Photos & Short Videos
+
+ZenSort provides intelligent video classification:
+
+- **Motion Photos**: Video files with specific filename patterns (iPhone/Samsung Live Photos)
+  - Detected by filename patterns like `live`, `motion`, `img_`, `mvimg_`
+  - Organized in `Videos/Motion Photos/Year/`
+  - Configurable patterns and maximum duration
+
+- **Short Videos**: Videos under a duration threshold
+  - Detected by video duration analysis using ffprobe
+  - Organized in `Videos/Short Videos/Year/`
+  - Configurable duration threshold (default: disabled)
+
+- **Regular Videos**: All other video files organized by year in `Videos/Year/`
+
+See [MOTION_PHOTOS.md](MOTION_PHOTOS.md) for detailed configuration and usage.
 
 ### Audio Categories
 - **Songs**: Music files with artist/album organization
@@ -158,8 +180,14 @@ Destination/
 │   ├── Exports/ (resized images)
 │   └── Hidden/ (hidden images - no exports)
 ├── Videos/
-│   ├── 2023/
-│   ├── 2024/
+│   ├── Motion Photos/
+│   │   ├── 2023/
+│   │   └── 2024/
+│   ├── Short Videos/
+│   │   ├── 2023/
+│   │   └── 2024/
+│   ├── 2023/ (regular videos)
+│   ├── 2024/ (regular videos)
 │   └── Hidden/
 ├── Audios/
 │   ├── Songs/
@@ -173,7 +201,7 @@ Destination/
 │   ├── TXT/
 │   └── Hidden/
 ├── Unknown/
-└── zensort-db/ (BadgerDB database)
+└── zensort-db/ (database files)
 ```
 
 ## Database

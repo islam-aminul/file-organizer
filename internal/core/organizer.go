@@ -144,10 +144,10 @@ func (fo *FileOrganizer) getDestinationPath(sourcePath string, fileType FileType
 		categoryDir := fo.config.Directories.Videos
 		year := fo.extractYear(fileInfo.ModTime())
 		
-		// Special handling for Live Photos and Motion Photos
-		if fo.detector.IsLiveOrMotionPhoto(sourcePath) {
-			// Organize Live/Motion Photos: Videos/Live Photos/Year/
-			return filepath.Join(fo.destDir, categoryDir, "Live Photos", year, filename), nil
+		// Special handling for Motion Photos (video files with specific patterns)
+		if fo.detector.IsMotionPhoto(sourcePath) {
+			// Organize Motion Photos: Videos/Motion Photos/Year/
+			return filepath.Join(fo.destDir, categoryDir, "Motion Photos", year, filename), nil
 		}
 		
 		// Check if it's a short video (after Live Photo detection)

@@ -42,6 +42,9 @@ type GUI struct {
 	progressChan   chan core.ProgressUpdate
 	logBuffer      []string
 	maxLogLines    int
+	currentFolder  string
+	folderFileCount int
+	folderFiles    []string
 	currentConfig  *config.Config
 	lastSourceDir  string
 	lastDestDir    string
@@ -68,7 +71,8 @@ func NewGUI() *GUI {
 		app:           a,
 		window:        w,
 		logBuffer:     make([]string, 0),
-		maxLogLines:   500, // Limit log to 500 lines for performance
+		maxLogLines:   100, // Limit log to 100 lines for performance
+		folderFiles:   make([]string, 0),
 		currentConfig: config.DefaultConfig(),
 	}
 	
@@ -115,8 +119,9 @@ func (g *GUI) togglePause() {
 			g.pauseButton.SetText("Resume")
 			g.pauseButton.Importance = widget.HighImportance
 			g.pauseButton.Refresh()
-			g.statusLabel.SetText("Paused")
+			g.statusLabel.SetText("⏸ Processing Paused")
 			g.isPaused = true
+			g.logMessage("⏸ Processing paused")
 		default:
 			// Channel full, ignore
 		}
@@ -456,20 +461,20 @@ func (g *GUI) openSettingsWindow() {
 	shortVideoThresholdEntry.SetText(fmt.Sprintf("%d", g.currentConfig.Processing.ShortVideoThreshold))
 	
 	// Live Photos settings
-	livePhotosEnabledCheck := widget.NewCheck("Enable Live Photo Detection", nil)
-	livePhotosEnabledCheck.SetChecked(g.currentConfig.LivePhotos.Enabled)
+	livePhotosEnabledCheck := widget.NewCheck("Enable Motion Photo Detection", nil)
+	livePhotosEnabledCheck.SetChecked(g.currentConfig.MotionPhotos.Enabled)
 	
 	iPhonePatternsEntry := widget.NewEntry()
-	iPhonePatternsEntry.SetText(strings.Join(g.currentConfig.LivePhotos.IPhonePatterns, ", "))
+	iPhonePatternsEntry.SetText(strings.Join(g.currentConfig.MotionPhotos.IPhonePatterns, ", "))
 	
 	samsungPatternsEntry := widget.NewEntry()
-	samsungPatternsEntry.SetText(strings.Join(g.currentConfig.LivePhotos.SamsungPatterns, ", "))
+	samsungPatternsEntry.SetText(strings.Join(g.currentConfig.MotionPhotos.SamsungPatterns, ", "))
 	
 	livePhotoExtensionsEntry := widget.NewEntry()
-	livePhotoExtensionsEntry.SetText(strings.Join(g.currentConfig.LivePhotos.Extensions, ", "))
+	livePhotoExtensionsEntry.SetText(strings.Join(g.currentConfig.MotionPhotos.Extensions, ", "))
 	
 	maxLiveDurationEntry := widget.NewEntry()
-	maxLiveDurationEntry.SetText(fmt.Sprintf("%d", g.currentConfig.LivePhotos.MaxDurationSeconds))
+	maxLiveDurationEntry.SetText(fmt.Sprintf("%d", g.currentConfig.MotionPhotos.MaxDurationSeconds))
 	
 	// Skip files extensions
 	skipExtEntry := widget.NewMultiLineEntry()
@@ -579,7 +584,7 @@ func (g *GUI) openSettingsWindow() {
 				enableExportsCheck,
 				container.NewGridWithColumns(2,
 					widget.NewLabel("JPEG Quality (1-100):"), jpegQualityEntry,
-					widget.NewLabel("Short Video Threshold (seconds):"), shortVideoThresholdEntry,
+					widget.NewLabel("Short Video Duration Threshold (seconds):"), shortVideoThresholdEntry,
 				),
 			),
 			widget.NewSeparator(),
@@ -587,8 +592,8 @@ func (g *GUI) openSettingsWindow() {
 			container.NewGridWithColumns(2,
 				widget.NewLabel("iPhone Patterns (comma-separated):"), iPhonePatternsEntry,
 				widget.NewLabel("Samsung Patterns (comma-separated):"), samsungPatternsEntry,
-				widget.NewLabel("Live Photo Extensions:"), livePhotoExtensionsEntry,
-				widget.NewLabel("Max Live Photo Duration (seconds):"), maxLiveDurationEntry,
+				widget.NewLabel("Motion Photo Extensions:"), livePhotoExtensionsEntry,
+				widget.NewLabel("Max Motion Photo Duration (seconds):"), maxLiveDurationEntry,
 			),
 		)),
 		
@@ -654,8 +659,8 @@ func (g *GUI) saveSettingsFromFormWithAudio(imagesEntry, videosEntry, audiosEntr
 		g.currentConfig.Processing.ShortVideoThreshold = threshold
 	}
 	
-	// Update Live Photos settings
-	g.currentConfig.LivePhotos.Enabled = livePhotosEnabledCheck.Checked
+	// Update Motion Photos settings
+	g.currentConfig.MotionPhotos.Enabled = livePhotosEnabledCheck.Checked
 	
 	// Parse iPhone patterns
 	if iPhoneText := strings.TrimSpace(iPhonePatternsEntry.Text); iPhoneText != "" {
@@ -663,7 +668,7 @@ func (g *GUI) saveSettingsFromFormWithAudio(imagesEntry, videosEntry, audiosEntr
 		for i, pattern := range patterns {
 			patterns[i] = strings.TrimSpace(pattern)
 		}
-		g.currentConfig.LivePhotos.IPhonePatterns = patterns
+		g.currentConfig.MotionPhotos.IPhonePatterns = patterns
 	}
 	
 	// Parse Samsung patterns
@@ -672,10 +677,10 @@ func (g *GUI) saveSettingsFromFormWithAudio(imagesEntry, videosEntry, audiosEntr
 		for i, pattern := range patterns {
 			patterns[i] = strings.TrimSpace(pattern)
 		}
-		g.currentConfig.LivePhotos.SamsungPatterns = patterns
+		g.currentConfig.MotionPhotos.SamsungPatterns = patterns
 	}
 	
-	// Parse Live Photo extensions
+	// Parse Motion Photo extensions
 	if extText := strings.TrimSpace(livePhotoExtensionsEntry.Text); extText != "" {
 		extensions := strings.Split(extText, ",")
 		for i, ext := range extensions {
@@ -685,12 +690,12 @@ func (g *GUI) saveSettingsFromFormWithAudio(imagesEntry, videosEntry, audiosEntr
 			}
 			extensions[i] = strings.ToLower(ext)
 		}
-		g.currentConfig.LivePhotos.Extensions = extensions
+		g.currentConfig.MotionPhotos.Extensions = extensions
 	}
 	
-	// Update max Live Photo duration
+	// Update max Motion Photo duration
 	if duration, err := strconv.Atoi(maxLiveDurationEntry.Text); err == nil && duration > 0 {
-		g.currentConfig.LivePhotos.MaxDurationSeconds = duration
+		g.currentConfig.MotionPhotos.MaxDurationSeconds = duration
 	}
 	
 	// Update audio categories
@@ -868,6 +873,9 @@ func (g *GUI) startProcessing() {
 	g.statusLabel.SetText("Initializing...")
 	g.logBuffer = make([]string, 0) // Clear log buffer
 	g.logText.SetText("")
+	g.currentFolder = ""
+	g.folderFileCount = 0
+	g.folderFiles = make([]string, 0)
 	
 	// Start progress monitoring
 	go g.monitorProgress()
@@ -970,6 +978,11 @@ func (g *GUI) stopProcessing() {
 // monitorProgress updates the UI with progress information
 func (g *GUI) monitorProgress() {
 	for update := range g.progressChan {
+		// Skip progress updates if paused
+		if g.isPaused {
+			continue
+		}
+		
 		// Update progress bar
 		g.progressBar.SetValue(update.Percentage / 100.0)
 		
@@ -984,13 +997,14 @@ func (g *GUI) monitorProgress() {
 		
 		g.statusLabel.SetText(statusText)
 		
-		// Log current file (throttled to reduce UI updates)
-		if update.CurrentFile != "" && update.ProcessedFiles%10 == 0 {
-			g.logMessage(fmt.Sprintf("Processing: %s", filepath.Base(update.CurrentFile)))
+		// Batch log files by folder
+		if update.CurrentFile != "" {
+			g.batchLogFile(update.CurrentFile)
 		}
 		
 		// Check if done
 		if update.Done {
+			g.flushFolderLog() // Flush any remaining files
 			g.logMessage(fmt.Sprintf("✓ Complete! Processed %d files in %s", 
 				update.ProcessedFiles, formatDuration(update.ElapsedTime)))
 			
@@ -1037,9 +1051,50 @@ func (g *GUI) updateLogDisplay() {
 	}
 	
 	g.logText.SetText(logContent)
+	g.logText.CursorRow = len(g.logBuffer) // Scroll to bottom
+}
+
+// batchLogFile batches files by folder for better log display
+func (g *GUI) batchLogFile(filePath string) {
+	folder := filepath.Dir(filePath)
+	fileName := filepath.Base(filePath)
 	
-	// Auto-scroll to bottom
-	g.logText.CursorRow = len(g.logText.Text)
+	// If this is a new folder, flush the previous batch
+	if g.currentFolder != "" && g.currentFolder != folder {
+		g.flushFolderLog()
+	}
+	
+	// Set current folder
+	g.currentFolder = folder
+	g.folderFiles = append(g.folderFiles, fileName)
+	g.folderFileCount++
+	
+	// Flush if we have 10 files or every 50 files processed
+	if len(g.folderFiles) >= 10 || g.folderFileCount%50 == 0 {
+		g.flushFolderLog()
+	}
+}
+
+// flushFolderLog outputs the current batch of files for a folder
+func (g *GUI) flushFolderLog() {
+	if g.currentFolder == "" || len(g.folderFiles) == 0 {
+		return
+	}
+	
+	folderName := filepath.Base(g.currentFolder)
+	if len(g.folderFiles) == 1 {
+		g.logMessage(fmt.Sprintf("📁 %s: %s", folderName, g.folderFiles[0]))
+	} else {
+		fileList := strings.Join(g.folderFiles, ", ")
+		if len(fileList) > 100 {
+			fileList = fileList[:97] + "..."
+		}
+		g.logMessage(fmt.Sprintf("📁 %s (%d files): %s", folderName, len(g.folderFiles), fileList))
+	}
+	
+	// Reset for next batch
+	g.folderFiles = make([]string, 0)
+	g.currentFolder = ""
 }
 
 // formatDuration formats a duration for display
