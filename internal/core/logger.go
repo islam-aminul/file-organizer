@@ -72,9 +72,9 @@ func (l *Logger) LogError(level LogLevel, message string, filePath string, err e
 	
 	var logMsg string
 	if err != nil {
-		logMsg = fmt.Sprintf("[%s] %s | File: %s | Error: %v", levelStr, message, filePath, err)
+		logMsg = fmt.Sprintf("[%s] %s | File: %q | Error: %v", levelStr, message, filePath, err)
 	} else {
-		logMsg = fmt.Sprintf("[%s] %s | File: %s", levelStr, message, filePath)
+		logMsg = fmt.Sprintf("[%s] %s | File: %q", levelStr, message, filePath)
 	}
 	
 	l.errorLog.Println(logMsg)
@@ -84,7 +84,7 @@ func (l *Logger) LogError(level LogLevel, message string, filePath string, err e
 func (l *Logger) LogOperation(level string, message string, filePath string) {
 	logMsg := fmt.Sprintf("[%s] %s", level, message)
 	if filePath != "" {
-		logMsg += fmt.Sprintf(" | File: %s", filePath)
+		logMsg += fmt.Sprintf(" | File: %q", filePath)
 	}
 	
 	l.operationLog.Println(logMsg)
@@ -93,14 +93,14 @@ func (l *Logger) LogOperation(level string, message string, filePath string) {
 // LogFileProcessed logs a successfully processed file
 func (l *Logger) LogFileProcessed(sourcePath, destPath, hash string, size int64) {
 	l.LogOperation("SUCCESS", 
-		fmt.Sprintf("File processed - Size: %d bytes, Hash: %s, Destination: %s", size, hash, destPath), 
+		fmt.Sprintf("File processed - Size: %d bytes, Hash: %s, Destination: %q", size, hash, destPath), 
 		sourcePath)
 }
 
 // LogFileDuplicate logs a duplicate file detection
 func (l *Logger) LogFileDuplicate(sourcePath, existingPath, hash string) {
 	l.LogOperation("DUPLICATE", 
-		fmt.Sprintf("Duplicate detected - Hash: %s, Existing: %s", hash, existingPath), 
+		fmt.Sprintf("Duplicate detected - Hash: %s, Existing: %q", hash, existingPath), 
 		sourcePath)
 }
 

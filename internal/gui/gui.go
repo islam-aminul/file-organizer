@@ -13,6 +13,7 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/widget"
 
 	"zensort/internal/config"
@@ -25,6 +26,8 @@ type GUI struct {
 	window         fyne.Window
 	sourceEntry    *widget.Entry
 	destEntry      *widget.Entry
+	sourceBrowseBtn *widget.Button
+	destBrowseBtn   *widget.Button
 	progressBar    *widget.ProgressBar
 	statusLabel    *widget.Label
 	logText        *widget.Entry
@@ -38,6 +41,8 @@ type GUI struct {
 	logBuffer      []string
 	maxLogLines    int
 	currentConfig  *config.Config
+	lastSourceDir  string
+	lastDestDir    string
 }
 
 // Launch starts the GUI application
@@ -56,12 +61,35 @@ func NewGUI() *GUI {
 	w.Resize(fyne.NewSize(800, 600))
 	w.CenterOnScreen()
 	
-	return &GUI{
+	gui := &GUI{
 		app:           a,
 		window:        w,
 		logBuffer:     make([]string, 0),
 		maxLogLines:   500, // Limit log to 500 lines for performance
 		currentConfig: config.DefaultConfig(),
+	}
+	
+	// Load last used directories from preferences
+	gui.loadLastUsedDirectories()
+	
+	return gui
+}
+
+// loadLastUsedDirectories loads the last used directories from app preferences
+func (g *GUI) loadLastUsedDirectories() {
+	g.lastSourceDir = g.app.Preferences().String("last_source_dir")
+	g.lastDestDir = g.app.Preferences().String("last_dest_dir")
+}
+
+// saveLastUsedDirectories saves the current directories to app preferences
+func (g *GUI) saveLastUsedDirectories() {
+	if g.sourceEntry.Text != "" {
+		g.lastSourceDir = g.sourceEntry.Text
+		g.app.Preferences().SetString("last_source_dir", g.lastSourceDir)
+	}
+	if g.destEntry.Text != "" {
+		g.lastDestDir = g.destEntry.Text
+		g.app.Preferences().SetString("last_dest_dir", g.lastDestDir)
 	}
 }
 
@@ -70,14 +98,14 @@ func (g *GUI) setupUI() {
 	// Source directory selection
 	g.sourceEntry = widget.NewEntry()
 	g.sourceEntry.SetPlaceHolder("Select source directory...")
-	sourceBrowse := widget.NewButton("Browse", g.browseSource)
-	sourceContainer := container.NewBorder(nil, nil, nil, sourceBrowse, g.sourceEntry)
+	g.sourceBrowseBtn = widget.NewButton("Browse", g.browseSource)
+	sourceContainer := container.NewBorder(nil, nil, nil, g.sourceBrowseBtn, g.sourceEntry)
 	
 	// Destination directory selection
 	g.destEntry = widget.NewEntry()
 	g.destEntry.SetPlaceHolder("Select destination directory...")
-	destBrowse := widget.NewButton("Browse", g.browseDestination)
-	destContainer := container.NewBorder(nil, nil, nil, destBrowse, g.destEntry)
+	g.destBrowseBtn = widget.NewButton("Browse", g.browseDestination)
+	destContainer := container.NewBorder(nil, nil, nil, g.destBrowseBtn, g.destEntry)
 	
 	// Progress bar
 	g.progressBar = widget.NewProgressBar()
@@ -129,23 +157,57 @@ func (g *GUI) setupUI() {
 
 // browseSource opens file dialog for source directory
 func (g *GUI) browseSource() {
-	dialog.ShowFolderOpen(func(uri fyne.ListableURI, err error) {
+	// Start from last used directory if available
+	var startDir fyne.ListableURI
+	if g.lastSourceDir != "" {
+		if uri, err := storage.ParseURI("file://" + g.lastSourceDir); err == nil {
+			if listableURI, ok := uri.(fyne.ListableURI); ok {
+				startDir = listableURI
+			}
+		}
+	}
+	
+	folderDialog := dialog.NewFolderOpen(func(uri fyne.ListableURI, err error) {
 		if err != nil || uri == nil {
 			return
 		}
 		g.sourceEntry.SetText(uri.Path())
+		g.saveLastUsedDirectories()
 	}, g.window)
+	
+	if startDir != nil {
+		folderDialog.SetLocation(startDir)
+	}
+	
+	folderDialog.Show()
 }
 
 // browseDestination opens file dialog for destination directory
 func (g *GUI) browseDestination() {
-	dialog.ShowFolderOpen(func(uri fyne.ListableURI, err error) {
+	// Start from last used directory if available
+	var startDir fyne.ListableURI
+	if g.lastDestDir != "" {
+		if uri, err := storage.ParseURI("file://" + g.lastDestDir); err == nil {
+			if listableURI, ok := uri.(fyne.ListableURI); ok {
+				startDir = listableURI
+			}
+		}
+	}
+	
+	folderDialog := dialog.NewFolderOpen(func(uri fyne.ListableURI, err error) {
 		if err != nil || uri == nil {
 			return
 		}
 		g.destEntry.SetText(uri.Path())
+		g.saveLastUsedDirectories()
 		g.onDestinationChanged()
 	}, g.window)
+	
+	if startDir != nil {
+		folderDialog.SetLocation(startDir)
+	}
+	
+	folderDialog.Show()
 }
 
 // onDestinationChanged handles destination directory selection changes
@@ -341,7 +403,7 @@ func (g *GUI) openSettingsWindow() {
 		
 		widget.NewCard("Audio Categories", "", func() *container.Scroll {
 			audioScroll := container.NewScroll(audioContainer)
-			audioScroll.SetMinSize(fyne.NewSize(0, 300))
+			audioScroll.SetMinSize(fyne.NewSize(500, 300))
 			return audioScroll
 		}()),
 		
@@ -550,6 +612,8 @@ func (g *GUI) startProcessing() {
 	g.stopButton.Enable()
 	g.sourceEntry.Disable()
 	g.destEntry.Disable()
+	g.sourceBrowseBtn.Disable()
+	g.destBrowseBtn.Disable()
 	g.settingsButton.Disable()
 	g.progressBar.SetValue(0)
 	g.statusLabel.SetText("Initializing...")
@@ -566,6 +630,8 @@ func (g *GUI) startProcessing() {
 			g.stopButton.Disable()
 			g.sourceEntry.Enable()
 			g.destEntry.Enable()
+			g.sourceBrowseBtn.Enable()
+			g.destBrowseBtn.Enable()
 			g.settingsButton.Enable()
 			close(g.progressChan)
 		}()
