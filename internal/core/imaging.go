@@ -1,9 +1,11 @@
 package core
 
 import (
+	"bytes"
 	"fmt"
 	"image"
 	"image/jpeg"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -107,18 +109,17 @@ func (ip *ImageProcessor) createExport(srcPath, exportPath string, exifData *EXI
 	}
 	defer outFile.Close()
 
-	// Save with configurable quality and preserve EXIF data
+	// Save with configurable quality
 	quality := ip.config.Processing.JPEGQuality
 	if quality <= 0 || quality > 100 {
 		quality = 85 // Default fallback
 	}
 	
 	// Preserve EXIF data by copying from original file
-	if err := ip.preserveEXIF(srcPath, outFile, resized, quality); err != nil {
-		// Fallback to basic JPEG encoding if EXIF preservation fails
+	if err := ip.preserveEXIFData(srcPath, outFile, resized, quality); err != nil {
+		// Fallback to standard encoding if EXIF preservation fails
 		return jpeg.Encode(outFile, resized, &jpeg.Options{Quality: quality})
 	}
-	
 	return nil
 }
 
@@ -186,24 +187,129 @@ func (ip *ImageProcessor) getExportPath(originalDestPath string, exifData *EXIFD
 	return GetImageDestinationPath(baseDir, fileName, exifData, ip.config, true)
 }
 
-// preserveEXIF attempts to preserve EXIF data when creating exports
-func (ip *ImageProcessor) preserveEXIF(srcPath string, outFile *os.File, img image.Image, quality int) error {
-	// Open original file to read EXIF data
+// preserveEXIFData extracts EXIF from source and embeds it in the processed image
+func (ip *ImageProcessor) preserveEXIFData(srcPath string, outFile *os.File, img image.Image, quality int) error {
+	// Read original file to extract EXIF data
 	srcFile, err := os.Open(srcPath)
 	if err != nil {
 		return err
 	}
 	defer srcFile.Close()
 
-	// Try to decode EXIF data
+	// Verify EXIF data exists (we don't need to decode it, just check)
 	_, err = exif.Decode(srcFile)
 	if err != nil {
-		// No EXIF data to preserve, use basic encoding
-		return jpeg.Encode(outFile, img, &jpeg.Options{Quality: quality})
+		return err // No EXIF data or decode error
 	}
 
-	// For now, we'll use basic JPEG encoding as preserving EXIF in processed images
-	// requires more complex handling. The EXIF data is already extracted and stored
-	// in the database for organization purposes.
-	return jpeg.Encode(outFile, img, &jpeg.Options{Quality: quality})
+	// Encode processed image to buffer first
+	var imgBuf bytes.Buffer
+	if err := jpeg.Encode(&imgBuf, img, &jpeg.Options{Quality: quality}); err != nil {
+		return err
+	}
+
+	// Read original file completely to get raw EXIF segments
+	srcFile.Seek(0, 0)
+	originalData, err := io.ReadAll(srcFile)
+	if err != nil {
+		return err
+	}
+
+	// Extract EXIF segment from original JPEG
+	exifSegment, err := ip.extractEXIFSegment(originalData)
+	if err != nil {
+		return err
+	}
+
+	// Combine processed image with original EXIF
+	return ip.writeJPEGWithEXIF(outFile, imgBuf.Bytes(), exifSegment)
+}
+
+// extractEXIFSegment extracts the EXIF APP1 segment from JPEG data
+func (ip *ImageProcessor) extractEXIFSegment(jpegData []byte) ([]byte, error) {
+	if len(jpegData) < 4 || jpegData[0] != 0xFF || jpegData[1] != 0xD8 {
+		return nil, fmt.Errorf("not a valid JPEG file")
+	}
+
+	pos := 2
+	for pos < len(jpegData)-1 {
+		if jpegData[pos] != 0xFF {
+			return nil, fmt.Errorf("invalid JPEG marker")
+		}
+		
+		marker := jpegData[pos+1]
+		pos += 2
+		
+		if marker == 0xE1 { // APP1 segment (EXIF)
+			if pos+2 > len(jpegData) {
+				break
+			}
+			length := int(jpegData[pos])<<8 | int(jpegData[pos+1])
+			if pos+length > len(jpegData) {
+				break
+			}
+			
+			// Check if this is EXIF data
+			if length > 6 && string(jpegData[pos+2:pos+6]) == "Exif" {
+				return jpegData[pos-2:pos+length], nil
+			}
+		}
+		
+		if marker == 0xDA { // Start of scan - no more metadata
+			break
+		}
+		
+		if pos+2 > len(jpegData) {
+			break
+		}
+		length := int(jpegData[pos])<<8 | int(jpegData[pos+1])
+		pos += length
+	}
+	
+	return nil, fmt.Errorf("no EXIF segment found")
+}
+
+// writeJPEGWithEXIF writes JPEG with EXIF segment inserted
+func (ip *ImageProcessor) writeJPEGWithEXIF(outFile *os.File, jpegData []byte, exifSegment []byte) error {
+	if len(jpegData) < 4 || jpegData[0] != 0xFF || jpegData[1] != 0xD8 {
+		return fmt.Errorf("invalid JPEG data")
+	}
+
+	// Write JPEG SOI marker
+	if _, err := outFile.Write(jpegData[0:2]); err != nil {
+		return err
+	}
+
+	// Write EXIF segment
+	if _, err := outFile.Write(exifSegment); err != nil {
+		return err
+	}
+
+	// Find where to continue writing from processed image (skip SOI and any existing APP segments)
+	pos := 2
+	for pos < len(jpegData)-1 {
+		if jpegData[pos] != 0xFF {
+			break
+		}
+		
+		marker := jpegData[pos+1]
+		if marker >= 0xE0 && marker <= 0xEF { // APP segments
+			if pos+2 >= len(jpegData) {
+				break
+			}
+			length := int(jpegData[pos])<<8 | int(jpegData[pos+1])
+			pos += 2 + length
+		} else {
+			break
+		}
+	}
+
+	// Write remaining JPEG data
+	if pos < len(jpegData) {
+		if _, err := outFile.Write(jpegData[pos:]); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
