@@ -250,6 +250,13 @@ func (fo *FileOrganizer) resolveNamingConflict(destPath string) string {
 func (fo *FileOrganizer) copyFile(src, dst string) error {
 	// Check if this is an image file that needs special processing
 	if IsImageFile(src) {
+		// Check if this is a hidden file - hidden images should not be exported
+		isHidden := fo.detector.IsHiddenFile(src)
+		if isHidden {
+			// Hidden images get regular copy only (no exports)
+			return fo.regularCopy(src, dst)
+		}
+		
 		// Extract EXIF data for image processing
 		exifData, err := ExtractEXIF(src)
 		if err != nil {
