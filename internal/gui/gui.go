@@ -549,7 +549,7 @@ func (g *GUI) openSettingsWindow() {
 	// Buttons
 	saveButton := widget.NewButton("Save Settings", func() {
 		g.saveSettingsFromFormWithAudio(imagesEntry, videosEntry, audiosEntry, documentsEntry, unknownEntry, hiddenEntry,
-			originalsEntry, exportsEntry, noExifYearEntry, maxWidthEntry, maxHeightEntry, enableExportsCheck, jpegQualityEntry, shortVideoThresholdEntry, livePhotosEnabledCheck, iPhonePatternsEntry, samsungPatternsEntry, livePhotoExtensionsEntry, maxLiveDurationEntry, skipExtEntry, skipPatternsEntry, audioEntries)
+			originalsEntry, exportsEntry, noExifYearEntry, maxWidthEntry, maxHeightEntry, enableExportsCheck, jpegQualityEntry, shortVideoThresholdEntry, livePhotosEnabledCheck, iPhonePatternsEntry, samsungPatternsEntry, livePhotoExtensionsEntry, maxLiveDurationEntry, screenshotsEnabledCheck, screenshotPatternsEntry, screenshotExtensionsEntry, screenshotFolderEntry, skipExtEntry, skipPatternsEntry, audioEntries)
 		settingsWindow.Close()
 	})
 	saveButton.Importance = widget.HighImportance
@@ -640,7 +640,7 @@ func (g *GUI) openSettingsWindow() {
 
 // saveSettingsFromFormWithAudio saves the configuration from form inputs including audio settings
 func (g *GUI) saveSettingsFromFormWithAudio(imagesEntry, videosEntry, audiosEntry, documentsEntry, unknownEntry, hiddenEntry,
-	originalsEntry, exportsEntry, noExifYearEntry, maxWidthEntry, maxHeightEntry *widget.Entry, enableExportsCheck *widget.Check, jpegQualityEntry, shortVideoThresholdEntry *widget.Entry, livePhotosEnabledCheck *widget.Check, iPhonePatternsEntry, samsungPatternsEntry, livePhotoExtensionsEntry, maxLiveDurationEntry, skipExtEntry, skipPatternsEntry *widget.Entry,
+	originalsEntry, exportsEntry, noExifYearEntry, maxWidthEntry, maxHeightEntry *widget.Entry, enableExportsCheck *widget.Check, jpegQualityEntry, shortVideoThresholdEntry *widget.Entry, livePhotosEnabledCheck *widget.Check, iPhonePatternsEntry, samsungPatternsEntry, livePhotoExtensionsEntry, maxLiveDurationEntry *widget.Entry, screenshotsEnabledCheck *widget.Check, screenshotPatternsEntry, screenshotExtensionsEntry, screenshotFolderEntry, skipExtEntry, skipPatternsEntry *widget.Entry,
 	audioEntries map[string]struct {
 		folderEntry    *widget.Entry
 		extensionsEntry *widget.Entry
