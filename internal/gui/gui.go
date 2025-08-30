@@ -75,23 +75,51 @@ func NewGUI() *GUI {
 	// Load last used directories from preferences
 	gui.loadLastUsedDirectories()
 	
+	// Setup UI first
+	gui.setupUI()
+	
+	// Set last used directories in entry fields after UI setup
+	if gui.lastSourceDir != "" {
+		gui.sourceEntry.SetText(gui.lastSourceDir)
+	}
+	if gui.lastDestDir != "" {
+		gui.destEntry.SetText(gui.lastDestDir)
+		gui.onDestinationChanged() // Enable settings if destination is set
+	}
+	
 	return gui
 }
 
 // togglePause toggles pause/resume functionality
 func (g *GUI) togglePause() {
+	if g.pauseChan == nil {
+		return // No active processing
+	}
+	
 	if g.isPaused {
 		// Resume processing
-		g.pauseChan <- false
-		g.pauseButton.SetText("Pause")
-		g.statusLabel.SetText("Resuming...")
-		g.isPaused = false
+		select {
+		case g.pauseChan <- false:
+			g.pauseButton.SetText("Pause")
+			g.pauseButton.Importance = widget.MediumImportance
+			g.pauseButton.Refresh()
+			g.statusLabel.SetText("Resuming...")
+			g.isPaused = false
+		default:
+			// Channel full, ignore
+		}
 	} else {
 		// Pause processing
-		g.pauseChan <- true
-		g.pauseButton.SetText("Resume")
-		g.statusLabel.SetText("Paused")
-		g.isPaused = true
+		select {
+		case g.pauseChan <- true:
+			g.pauseButton.SetText("Resume")
+			g.pauseButton.Importance = widget.HighImportance
+			g.pauseButton.Refresh()
+			g.statusLabel.SetText("Paused")
+			g.isPaused = true
+		default:
+			// Channel full, ignore
+		}
 	}
 }
 
@@ -183,26 +211,67 @@ func (g *GUI) setupUI() {
 
 // browseSource opens file dialog for source directory
 func (g *GUI) browseSource() {
-	// Start from last used directory if available
+	// Start from current source entry or last used directory
 	var startDir fyne.ListableURI
-	if g.lastSourceDir != "" {
-		if uri, err := storage.ParseURI("file://" + g.lastSourceDir); err == nil {
-			if listableURI, ok := uri.(fyne.ListableURI); ok {
-				startDir = listableURI
+	startPath := g.sourceEntry.Text
+	if startPath == "" {
+		startPath = g.lastSourceDir
+	}
+	
+	if startPath != "" {
+		// Validate directory exists before creating URI
+		if _, err := os.Stat(startPath); err == nil {
+			// Ensure proper file:// URI format for Windows paths
+			if !strings.HasPrefix(startPath, "file://") {
+				// Convert Windows path to proper URI
+				startPath = strings.ReplaceAll(startPath, "\\", "/")
+				startPath = "file:///" + startPath
 			}
+			if uri, err := storage.ParseURI(startPath); err == nil {
+				if listableURI, ok := uri.(fyne.ListableURI); ok {
+					startDir = listableURI
+				}
+			}
+		} else {
+			fmt.Printf("Stored source directory no longer exists: %s\n", startPath)
 		}
 	}
 	
 	folderDialog := dialog.NewFolderOpen(func(uri fyne.ListableURI, err error) {
-		if err != nil || uri == nil {
+		defer func() {
+			if r := recover(); r != nil {
+				fmt.Printf("Panic in source dialog callback: %v\n", r)
+			}
+		}()
+		
+		if err != nil {
+			fmt.Printf("Folder dialog error: %v\n", err)
 			return
 		}
-		g.sourceEntry.SetText(uri.Path())
+		if uri == nil {
+			fmt.Printf("URI is nil\n")
+			return
+		}
+		
+		path := uri.Path()
+		fmt.Printf("Selected source path: %s\n", path)
+		
+		if g.sourceEntry != nil {
+			g.sourceEntry.SetText(path)
+		}
 		g.saveLastUsedDirectories()
 	}, g.window)
 	
 	if startDir != nil {
-		folderDialog.SetLocation(startDir)
+		// Additional safety check before setting location
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Printf("Panic setting source dialog location: %v\n", r)
+				}
+			}()
+			folderDialog.SetLocation(startDir)
+		}()
 	}
 	
 	folderDialog.Show()
@@ -210,27 +279,68 @@ func (g *GUI) browseSource() {
 
 // browseDestination opens file dialog for destination directory
 func (g *GUI) browseDestination() {
-	// Start from last used directory if available
+	// Start from current dest entry or last used directory
 	var startDir fyne.ListableURI
-	if g.lastDestDir != "" {
-		if uri, err := storage.ParseURI("file://" + g.lastDestDir); err == nil {
-			if listableURI, ok := uri.(fyne.ListableURI); ok {
-				startDir = listableURI
+	startPath := g.destEntry.Text
+	if startPath == "" {
+		startPath = g.lastDestDir
+	}
+	
+	if startPath != "" {
+		// Validate directory exists before creating URI
+		if _, err := os.Stat(startPath); err == nil {
+			// Ensure proper file:// URI format for Windows paths
+			if !strings.HasPrefix(startPath, "file://") {
+				// Convert Windows path to proper URI
+				startPath = strings.ReplaceAll(startPath, "\\", "/")
+				startPath = "file:///" + startPath
 			}
+			if uri, err := storage.ParseURI(startPath); err == nil {
+				if listableURI, ok := uri.(fyne.ListableURI); ok {
+					startDir = listableURI
+				}
+			}
+		} else {
+			fmt.Printf("Stored destination directory no longer exists: %s\n", startPath)
 		}
 	}
 	
 	folderDialog := dialog.NewFolderOpen(func(uri fyne.ListableURI, err error) {
-		if err != nil || uri == nil {
+		defer func() {
+			if r := recover(); r != nil {
+				fmt.Printf("Panic in destination dialog callback: %v\n", r)
+			}
+		}()
+		
+		if err != nil {
+			fmt.Printf("Folder dialog error: %v\n", err)
 			return
 		}
-		g.destEntry.SetText(uri.Path())
+		if uri == nil {
+			fmt.Printf("URI is nil\n")
+			return
+		}
+		
+		path := uri.Path()
+		fmt.Printf("Selected destination path: %s\n", path)
+		
+		if g.destEntry != nil {
+			g.destEntry.SetText(path)
+		}
 		g.saveLastUsedDirectories()
 		g.onDestinationChanged()
 	}, g.window)
 	
 	if startDir != nil {
-		folderDialog.SetLocation(startDir)
+		// Additional safety check before setting location
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Printf("Panic setting destination dialog location: %v\n", r)
+				}
+			}()
+			folderDialog.SetLocation(startDir)
+		}()
 	}
 	
 	folderDialog.Show()
@@ -238,16 +348,30 @@ func (g *GUI) browseDestination() {
 
 // onDestinationChanged handles destination directory selection changes
 func (g *GUI) onDestinationChanged() {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("Panic in onDestinationChanged: %v\n", r)
+		}
+	}()
+	
 	destDir := g.destEntry.Text
 	if destDir == "" {
-		g.settingsButton.Disable()
-		g.startButton.Disable()
+		if g.settingsButton != nil {
+			g.settingsButton.Disable()
+		}
+		if g.startButton != nil {
+			g.startButton.Disable()
+		}
 		return
 	}
 	
 	// Enable buttons when destination is selected
-	g.settingsButton.Enable()
-	g.startButton.Enable()
+	if g.settingsButton != nil {
+		g.settingsButton.Enable()
+	}
+	if g.startButton != nil {
+		g.startButton.Enable()
+	}
 }
 
 // showSettings opens the settings configuration window
@@ -328,6 +452,25 @@ func (g *GUI) openSettingsWindow() {
 	jpegQualityEntry := widget.NewEntry()
 	jpegQualityEntry.SetText(fmt.Sprintf("%d", g.currentConfig.Processing.JPEGQuality))
 	
+	shortVideoThresholdEntry := widget.NewEntry()
+	shortVideoThresholdEntry.SetText(fmt.Sprintf("%d", g.currentConfig.Processing.ShortVideoThreshold))
+	
+	// Live Photos settings
+	livePhotosEnabledCheck := widget.NewCheck("Enable Live Photo Detection", nil)
+	livePhotosEnabledCheck.SetChecked(g.currentConfig.LivePhotos.Enabled)
+	
+	iPhonePatternsEntry := widget.NewEntry()
+	iPhonePatternsEntry.SetText(strings.Join(g.currentConfig.LivePhotos.IPhonePatterns, ", "))
+	
+	samsungPatternsEntry := widget.NewEntry()
+	samsungPatternsEntry.SetText(strings.Join(g.currentConfig.LivePhotos.SamsungPatterns, ", "))
+	
+	livePhotoExtensionsEntry := widget.NewEntry()
+	livePhotoExtensionsEntry.SetText(strings.Join(g.currentConfig.LivePhotos.Extensions, ", "))
+	
+	maxLiveDurationEntry := widget.NewEntry()
+	maxLiveDurationEntry.SetText(fmt.Sprintf("%d", g.currentConfig.LivePhotos.MaxDurationSeconds))
+	
 	// Skip files extensions
 	skipExtEntry := widget.NewMultiLineEntry()
 	skipExtEntry.SetText(strings.Join(g.currentConfig.SkipFiles.Extensions, "\n"))
@@ -388,7 +531,7 @@ func (g *GUI) openSettingsWindow() {
 	// Buttons
 	saveButton := widget.NewButton("Save Settings", func() {
 		g.saveSettingsFromFormWithAudio(imagesEntry, videosEntry, audiosEntry, documentsEntry, unknownEntry, hiddenEntry,
-			originalsEntry, exportsEntry, noExifYearEntry, maxWidthEntry, maxHeightEntry, enableExportsCheck, jpegQualityEntry, skipExtEntry, skipPatternsEntry, audioEntries)
+			originalsEntry, exportsEntry, noExifYearEntry, maxWidthEntry, maxHeightEntry, enableExportsCheck, jpegQualityEntry, shortVideoThresholdEntry, livePhotosEnabledCheck, iPhonePatternsEntry, samsungPatternsEntry, livePhotoExtensionsEntry, maxLiveDurationEntry, skipExtEntry, skipPatternsEntry, audioEntries)
 		settingsWindow.Close()
 	})
 	saveButton.Importance = widget.HighImportance
@@ -436,7 +579,16 @@ func (g *GUI) openSettingsWindow() {
 				enableExportsCheck,
 				container.NewGridWithColumns(2,
 					widget.NewLabel("JPEG Quality (1-100):"), jpegQualityEntry,
+					widget.NewLabel("Short Video Threshold (seconds):"), shortVideoThresholdEntry,
 				),
+			),
+			widget.NewSeparator(),
+			livePhotosEnabledCheck,
+			container.NewGridWithColumns(2,
+				widget.NewLabel("iPhone Patterns (comma-separated):"), iPhonePatternsEntry,
+				widget.NewLabel("Samsung Patterns (comma-separated):"), samsungPatternsEntry,
+				widget.NewLabel("Live Photo Extensions:"), livePhotoExtensionsEntry,
+				widget.NewLabel("Max Live Photo Duration (seconds):"), maxLiveDurationEntry,
 			),
 		)),
 		
@@ -463,7 +615,7 @@ func (g *GUI) openSettingsWindow() {
 
 // saveSettingsFromFormWithAudio saves the configuration from form inputs including audio settings
 func (g *GUI) saveSettingsFromFormWithAudio(imagesEntry, videosEntry, audiosEntry, documentsEntry, unknownEntry, hiddenEntry,
-	originalsEntry, exportsEntry, noExifYearEntry, maxWidthEntry, maxHeightEntry *widget.Entry, enableExportsCheck *widget.Check, jpegQualityEntry, skipExtEntry, skipPatternsEntry *widget.Entry,
+	originalsEntry, exportsEntry, noExifYearEntry, maxWidthEntry, maxHeightEntry *widget.Entry, enableExportsCheck *widget.Check, jpegQualityEntry, shortVideoThresholdEntry *widget.Entry, livePhotosEnabledCheck *widget.Check, iPhonePatternsEntry, samsungPatternsEntry, livePhotoExtensionsEntry, maxLiveDurationEntry, skipExtEntry, skipPatternsEntry *widget.Entry,
 	audioEntries map[string]struct {
 		folderEntry    *widget.Entry
 		extensionsEntry *widget.Entry
@@ -495,6 +647,50 @@ func (g *GUI) saveSettingsFromFormWithAudio(imagesEntry, videosEntry, audiosEntr
 	g.currentConfig.Processing.EnableImageExports = enableExportsCheck.Checked
 	if quality, err := strconv.Atoi(jpegQualityEntry.Text); err == nil && quality > 0 && quality <= 100 {
 		g.currentConfig.Processing.JPEGQuality = quality
+	}
+	
+	// Update short video threshold
+	if threshold, err := strconv.Atoi(shortVideoThresholdEntry.Text); err == nil && threshold >= 0 {
+		g.currentConfig.Processing.ShortVideoThreshold = threshold
+	}
+	
+	// Update Live Photos settings
+	g.currentConfig.LivePhotos.Enabled = livePhotosEnabledCheck.Checked
+	
+	// Parse iPhone patterns
+	if iPhoneText := strings.TrimSpace(iPhonePatternsEntry.Text); iPhoneText != "" {
+		patterns := strings.Split(iPhoneText, ",")
+		for i, pattern := range patterns {
+			patterns[i] = strings.TrimSpace(pattern)
+		}
+		g.currentConfig.LivePhotos.IPhonePatterns = patterns
+	}
+	
+	// Parse Samsung patterns
+	if samsungText := strings.TrimSpace(samsungPatternsEntry.Text); samsungText != "" {
+		patterns := strings.Split(samsungText, ",")
+		for i, pattern := range patterns {
+			patterns[i] = strings.TrimSpace(pattern)
+		}
+		g.currentConfig.LivePhotos.SamsungPatterns = patterns
+	}
+	
+	// Parse Live Photo extensions
+	if extText := strings.TrimSpace(livePhotoExtensionsEntry.Text); extText != "" {
+		extensions := strings.Split(extText, ",")
+		for i, ext := range extensions {
+			ext = strings.TrimSpace(ext)
+			if !strings.HasPrefix(ext, ".") {
+				ext = "." + ext
+			}
+			extensions[i] = strings.ToLower(ext)
+		}
+		g.currentConfig.LivePhotos.Extensions = extensions
+	}
+	
+	// Update max Live Photo duration
+	if duration, err := strconv.Atoi(maxLiveDurationEntry.Text); err == nil && duration > 0 {
+		g.currentConfig.LivePhotos.MaxDurationSeconds = duration
 	}
 	
 	// Update audio categories
@@ -656,7 +852,12 @@ func (g *GUI) startProcessing() {
 	// Update UI state - disable all input fields during processing
 	g.startButton.Disable()
 	g.pauseButton.Enable()
+	g.pauseButton.SetText("Pause")
+	g.pauseButton.Importance = widget.MediumImportance
+	g.pauseButton.Refresh()
 	g.stopButton.Enable()
+	g.stopButton.Importance = widget.DangerImportance
+	g.stopButton.Refresh()
 	g.sourceEntry.Disable()
 	g.destEntry.Disable()
 	g.sourceBrowseBtn.Disable()
@@ -675,8 +876,15 @@ func (g *GUI) startProcessing() {
 	go func() {
 		defer func() {
 			g.startButton.Enable()
+			g.startButton.Importance = widget.HighImportance
+			g.startButton.Refresh()
 			g.pauseButton.Disable()
+			g.pauseButton.SetText("Pause")
+			g.pauseButton.Importance = widget.MediumImportance
+			g.pauseButton.Refresh()
 			g.stopButton.Disable()
+			g.stopButton.Importance = widget.DangerImportance
+			g.stopButton.Refresh()
 			g.sourceEntry.Enable()
 			g.destEntry.Enable()
 			g.sourceBrowseBtn.Enable()
@@ -684,6 +892,8 @@ func (g *GUI) startProcessing() {
 			g.settingsButton.Enable()
 			g.isPaused = false
 			close(g.progressChan)
+			g.progressChan = nil
+			g.pauseChan = nil
 		}()
 		
 		processor, err := core.NewFileProcessor(cfg, destDir)
@@ -725,6 +935,24 @@ func (g *GUI) processWithPauseSupport(processor *core.FileProcessor, sourceDir s
 	processingDone := make(chan error, 1)
 	go func() {
 		processingDone <- processor.ProcessDirectory(g.ctx, sourceDir)
+	}()
+	
+	// Monitor pause/resume signals
+	go func() {
+		for {
+			select {
+			case shouldPause := <-g.pauseChan:
+				if shouldPause {
+					// Pause logic - processor should check context
+					g.logMessage("Processing paused")
+				} else {
+					// Resume logic
+					g.logMessage("Processing resumed")
+				}
+			case <-g.ctx.Done():
+				return
+			}
+		}
 	}()
 	
 	// Wait for processing to complete

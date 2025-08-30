@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/gabriel-vasile/mimetype"
+	"zensort/internal/config"
 )
 
 // FileType represents the category of a file
@@ -25,10 +26,16 @@ type FileTypeDetector struct {
 	videoExts    map[string]bool
 	audioExts    map[string]bool
 	documentExts map[string]bool
+	config       *config.Config
 }
 
 // NewFileTypeDetector creates a new file type detector
 func NewFileTypeDetector() *FileTypeDetector {
+	return NewFileTypeDetectorWithConfig(nil)
+}
+
+// NewFileTypeDetectorWithConfig creates a new file type detector with configuration
+func NewFileTypeDetectorWithConfig(cfg *config.Config) *FileTypeDetector {
 	return &FileTypeDetector{
 		imageExts: map[string]bool{
 			".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".bmp": true,
@@ -46,16 +53,22 @@ func NewFileTypeDetector() *FileTypeDetector {
 			".wma": true, ".m4a": true, ".opus": true, ".aiff": true, ".au": true,
 		},
 		documentExts: map[string]bool{
-			".pdf": true, ".doc": true, ".docx": true, ".xls": true, ".xlsx": true,
-			".ppt": true, ".pptx": true, ".txt": true, ".rtf": true, ".odt": true,
-			".ods": true, ".odp": true, ".csv": true, ".xml": true, ".json": true,
+			".pdf": true, ".doc": true, ".docx": true, ".txt": true, ".rtf": true,
+			".xls": true, ".xlsx": true, ".ppt": true, ".pptx": true, ".odt": true,
+			".ods": true, ".odp": true, ".pages": true, ".numbers": true, ".key": true,
 			".html": true, ".htm": true, ".md": true, ".tex": true,
 		},
+		config: cfg,
 	}
 }
 
 // DetectFileType determines the file type using hybrid approach
 func (d *FileTypeDetector) DetectFileType(filePath string) FileType {
+	// Check for Live Photos and Motion Photos first (special case)
+	if d.isLiveOrMotionPhoto(filePath) {
+		return FileTypeVideo
+	}
+	
 	// First, try extension-based detection (fast)
 	ext := strings.ToLower(filepath.Ext(filePath))
 	
@@ -126,37 +139,139 @@ func (d *FileTypeDetector) GetFileTypeString(fileType FileType) string {
 func (d *FileTypeDetector) ShouldSkipFile(filePath string, skipExtensions []string, skipPatterns []string, skipDirs []string) bool {
 	filename := filepath.Base(filePath)
 	ext := strings.ToLower(filepath.Ext(filePath))
-	dir := filepath.Dir(filePath)
 	
-	// Check extensions
+	// Fast path: Check common skip extensions first
+	if ext == ".tmp" || ext == ".temp" || ext == ".log" || ext == ".cache" {
+		return true
+	}
+	
+	// Special thumb file checks (common case)
+	if strings.HasSuffix(ext, ".thumb") {
+		return true
+	}
+	if strings.Contains(ext, ".thumb") && len(ext) > 6 {
+		suffix := ext[6:] // Get part after ".thumb"
+		if _, err := strconv.Atoi(suffix); err == nil {
+			return true
+		}
+	}
+	
+	// Check configured extensions
 	for _, skipExt := range skipExtensions {
 		if ext == strings.ToLower(skipExt) {
 			return true
 		}
 	}
 	
-	// Check filename patterns
+	// Check directory patterns (early exit if found)
+	if len(skipDirs) > 0 {
+		dir := filepath.Dir(filePath)
+		for _, skipDir := range skipDirs {
+			if strings.Contains(dir, skipDir) {
+				return true
+			}
+		}
+	}
+	
+	// Check filename patterns (most expensive, do last)
 	for _, pattern := range skipPatterns {
 		if matched, _ := filepath.Match(pattern, filename); matched {
 			return true
 		}
 	}
 	
-	// Special check for .thumbN extensions (where N is a number)
-	if strings.HasSuffix(ext, ".thumb") {
-		return true
+	return false
+}
+
+// IsLiveOrMotionPhoto detects iPhone Live Photos and Samsung Motion Photos (exported method)
+func (d *FileTypeDetector) IsLiveOrMotionPhoto(filePath string) bool {
+	return d.isLiveOrMotionPhoto(filePath)
+}
+
+// isLiveOrMotionPhoto detects iPhone Live Photos and Samsung Motion Photos using config
+func (d *FileTypeDetector) isLiveOrMotionPhoto(filePath string) bool {
+	// Use config if available, otherwise fall back to defaults
+	if d.config != nil && d.config.LivePhotos.Enabled {
+		return d.isLiveOrMotionPhotoWithConfig(filePath, &d.config.LivePhotos)
 	}
-	// Check for .thumb followed by numbers (e.g., .thumb1, .thumb2, etc.)
-	if strings.Contains(ext, ".thumb") && len(ext) > 6 {
-		suffix := ext[6:] // Get part after ".thumb"
-		if _, err := strconv.Atoi(suffix); err == nil {
-			return true // It's a number, so skip this file
+	
+	// Fallback to hardcoded patterns if no config
+	return d.isLiveOrMotionPhotoFallback(filePath)
+}
+
+// isLiveOrMotionPhotoWithConfig uses configuration-based detection
+func (d *FileTypeDetector) isLiveOrMotionPhotoWithConfig(filePath string, liveConfig *struct {
+	Enabled           bool     `json:"enabled"`
+	IPhonePatterns    []string `json:"iphone_patterns"`
+	SamsungPatterns   []string `json:"samsung_patterns"`
+	Extensions        []string `json:"extensions"`
+	MaxDurationSeconds int     `json:"max_duration_seconds"`
+}) bool {
+	if !liveConfig.Enabled {
+		return false
+	}
+	
+	filename := strings.ToLower(filepath.Base(filePath))
+	ext := strings.ToLower(filepath.Ext(filePath))
+	
+	// Check if extension is supported
+	extensionSupported := false
+	for _, supportedExt := range liveConfig.Extensions {
+		if ext == strings.ToLower(supportedExt) {
+			extensionSupported = true
+			break
+		}
+	}
+	if !extensionSupported {
+		return false
+	}
+	
+	// Check iPhone patterns
+	for _, pattern := range liveConfig.IPhonePatterns {
+		if strings.Contains(filename, strings.ToLower(pattern)) {
+			return true
 		}
 	}
 	
-	// Check directory patterns
-	for _, skipDir := range skipDirs {
-		if strings.Contains(dir, skipDir) {
+	// Check Samsung patterns
+	for _, pattern := range liveConfig.SamsungPatterns {
+		if strings.Contains(filename, strings.ToLower(pattern)) {
+			return true
+		}
+	}
+	
+	return false
+}
+
+// isLiveOrMotionPhotoFallback provides fallback detection when no config is available
+func (d *FileTypeDetector) isLiveOrMotionPhotoFallback(filePath string) bool {
+	filename := strings.ToLower(filepath.Base(filePath))
+	ext := strings.ToLower(filepath.Ext(filePath))
+	
+	// iPhone Live Photos detection
+	if ext == ".mov" {
+		if strings.Contains(filename, "live") ||
+		   strings.Contains(filename, "livephoto") ||
+		   strings.Contains(filename, "_live") ||
+		   strings.HasPrefix(filename, "img_") {
+			return true
+		}
+	}
+	
+	// Samsung Motion Photos detection
+	if ext == ".mp4" {
+		if strings.Contains(filename, "motion") ||
+		   strings.Contains(filename, "_motion") ||
+		   strings.Contains(filename, "motionphoto") ||
+		   strings.HasPrefix(filename, "mvimg_") {
+			return true
+		}
+	}
+	
+	// Motion photo JPEG files
+	if ext == ".jpg" || ext == ".jpeg" {
+		if strings.Contains(filename, "motion") ||
+		   strings.Contains(filename, "_motion") {
 			return true
 		}
 	}

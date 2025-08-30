@@ -26,7 +26,7 @@ func NewFileOrganizer(cfg *config.Config, destDir string, db *Database, logger *
 	return &FileOrganizer{
 		config:   cfg,
 		destDir:  destDir,
-		detector: NewFileTypeDetector(),
+		detector: NewFileTypeDetectorWithConfig(cfg),
 		db:       db,
 		logger:   logger,
 	}
@@ -110,15 +110,28 @@ func (fo *FileOrganizer) getDestinationPath(sourcePath string, fileType FileType
 	// Check if file is hidden
 	isHidden := fo.detector.IsHiddenFile(sourcePath)
 	
-	var categoryDir string
+	// Handle hidden files first (common case optimization)
+	if isHidden {
+		var categoryDir string
+		switch fileType {
+		case FileTypeImage:
+			categoryDir = fo.config.Directories.Images
+		case FileTypeVideo:
+			categoryDir = fo.config.Directories.Videos
+		case FileTypeAudio:
+			categoryDir = fo.config.Directories.Audios
+		case FileTypeDocument:
+			categoryDir = fo.config.Directories.Documents
+		default:
+			categoryDir = fo.config.Directories.Unknown
+		}
+		return filepath.Join(fo.destDir, categoryDir, fo.config.Directories.Hidden, filename), nil
+	}
+
+	// Handle non-hidden files by type
 	switch fileType {
 	case FileTypeImage:
-		categoryDir = fo.config.Directories.Images
-		if isHidden {
-			// Hidden images stay in hidden directory only - no export
-			return filepath.Join(fo.destDir, categoryDir, fo.config.Directories.Hidden, filename), nil
-		}
-		
+		categoryDir := fo.config.Directories.Images
 		// For images, use EXIF-based organization
 		exifData, err := ExtractEXIF(sourcePath)
 		if err != nil {
@@ -128,28 +141,35 @@ func (fo *FileOrganizer) getDestinationPath(sourcePath string, fileType FileType
 		return GetImageDestinationPath(fo.destDir, filename, exifData, fo.config, false), nil
 		
 	case FileTypeVideo:
-		categoryDir = fo.config.Directories.Videos
-		if isHidden {
-			return filepath.Join(fo.destDir, categoryDir, fo.config.Directories.Hidden, filename), nil
-		}
-		// Organize by year if possible, otherwise use "0000"
+		categoryDir := fo.config.Directories.Videos
 		year := fo.extractYear(fileInfo.ModTime())
+		
+		// Special handling for Live Photos and Motion Photos
+		if fo.detector.IsLiveOrMotionPhoto(sourcePath) {
+			// Organize Live/Motion Photos: Videos/Live Photos/Year/
+			return filepath.Join(fo.destDir, categoryDir, "Live Photos", year, filename), nil
+		}
+		
+		// Check if it's a short video (after Live Photo detection)
+		if fo.config.Processing.ShortVideoThreshold > 0 {
+			videoAnalyzer := NewVideoAnalyzer()
+			if videoAnalyzer.IsShortVideo(sourcePath, fo.config.Processing.ShortVideoThreshold) {
+				// Organize Short Videos: Videos/Short Videos/Year/
+				return filepath.Join(fo.destDir, categoryDir, "Short Videos", year, filename), nil
+			}
+		}
+		
+		// Regular video organization by year
 		return filepath.Join(fo.destDir, categoryDir, year, filename), nil
 		
 	case FileTypeAudio:
-		categoryDir = fo.config.Directories.Audios
-		if isHidden {
-			return filepath.Join(fo.destDir, categoryDir, fo.config.Directories.Hidden, filename), nil
-		}
+		categoryDir := fo.config.Directories.Audios
 		// Categorize audio files
 		audioCategory := fo.categorizeAudio(filename)
 		return filepath.Join(fo.destDir, categoryDir, audioCategory, filename), nil
 		
 	case FileTypeDocument:
-		categoryDir = fo.config.Directories.Documents
-		if isHidden {
-			return filepath.Join(fo.destDir, categoryDir, fo.config.Directories.Hidden, filename), nil
-		}
+		categoryDir := fo.config.Directories.Documents
 		// Organize by file extension
 		ext := strings.ToUpper(strings.TrimPrefix(filepath.Ext(filename), "."))
 		if ext == "" {
@@ -158,10 +178,7 @@ func (fo *FileOrganizer) getDestinationPath(sourcePath string, fileType FileType
 		return filepath.Join(fo.destDir, categoryDir, ext, filename), nil
 		
 	default:
-		categoryDir = fo.config.Directories.Unknown
-		if isHidden {
-			return filepath.Join(fo.destDir, categoryDir, fo.config.Directories.Hidden, filename), nil
-		}
+		categoryDir := fo.config.Directories.Unknown
 		return filepath.Join(fo.destDir, categoryDir, filename), nil
 	}
 }
@@ -179,28 +196,34 @@ func (fo *FileOrganizer) categorizeAudio(filename string) string {
 	lowerName := strings.ToLower(filename)
 	ext := strings.ToLower(filepath.Ext(filename))
 	
-	// Check each audio category from configuration
+	// First pass: Check extension + pattern combinations (most specific)
 	for _, category := range fo.config.AudioCategories {
-		// Check if extension matches
+		// Quick extension check first
+		hasMatchingExt := false
 		for _, configExt := range category.Extensions {
 			if ext == strings.ToLower(configExt) {
-				// Extension matches, now check patterns
-				if len(category.Patterns) == 0 {
-					// No patterns specified, match by extension only
+				hasMatchingExt = true
+				break
+			}
+		}
+		
+		if hasMatchingExt {
+			// Extension matches - check patterns if any
+			if len(category.Patterns) == 0 {
+				// No patterns required, extension match is sufficient
+				return category.FolderName
+			}
+			
+			// Check patterns for this category
+			for _, pattern := range category.Patterns {
+				if strings.Contains(lowerName, strings.ToLower(pattern)) {
 					return category.FolderName
-				}
-				
-				// Check if filename matches any pattern
-				for _, pattern := range category.Patterns {
-					if strings.Contains(lowerName, strings.ToLower(pattern)) {
-						return category.FolderName
-					}
 				}
 			}
 		}
 	}
 	
-	// Fallback: check if any category has matching patterns regardless of extension
+	// Second pass: Pattern-only matching (fallback)
 	for _, category := range fo.config.AudioCategories {
 		for _, pattern := range category.Patterns {
 			if strings.Contains(lowerName, strings.ToLower(pattern)) {
@@ -209,18 +232,28 @@ func (fo *FileOrganizer) categorizeAudio(filename string) string {
 		}
 	}
 	
-	// Default fallback - try to find "songs" category or use first available
+	// Third pass: Extension-only matching for categories without patterns
+	for _, category := range fo.config.AudioCategories {
+		if len(category.Patterns) == 0 {
+			for _, configExt := range category.Extensions {
+				if ext == strings.ToLower(configExt) {
+					return category.FolderName
+				}
+			}
+		}
+	}
+	
+	// Default fallbacks with early returns
 	if songsCategory, exists := fo.config.AudioCategories["songs"]; exists {
 		return songsCategory.FolderName
 	}
 	
-	// If no songs category, use first available category
+	// Return first available category
 	for _, category := range fo.config.AudioCategories {
 		return category.FolderName
 	}
 	
-	// Ultimate fallback
-	return "Songs"
+	return "Songs" // Ultimate fallback
 }
 
 // resolveNamingConflict handles file naming conflicts by appending " -- n"

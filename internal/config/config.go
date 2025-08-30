@@ -37,13 +37,22 @@ type Config struct {
 	} `json:"skip_files"`
 	
 	Processing struct {
-		MaxImageWidth    int  `json:"max_image_width"`
-		MaxImageHeight   int  `json:"max_image_height"`
-		BufferSize       int  `json:"buffer_size"`
-		HashChunkSize    int  `json:"hash_chunk_size"`
+		MaxImageWidth      int  `json:"max_image_width"`
+		MaxImageHeight     int  `json:"max_image_height"`
+		BufferSize         int  `json:"buffer_size"`
+		HashChunkSize      int  `json:"hash_chunk_size"`
 		EnableImageExports bool `json:"enable_image_exports"`
-		JPEGQuality      int  `json:"jpeg_quality"`
+		JPEGQuality        int  `json:"jpeg_quality"`
+		ShortVideoThreshold int `json:"short_video_threshold_seconds"`
 	} `json:"processing"`
+	
+	LivePhotos struct {
+		Enabled           bool     `json:"enabled"`
+		IPhonePatterns    []string `json:"iphone_patterns"`
+		SamsungPatterns   []string `json:"samsung_patterns"`
+		Extensions        []string `json:"extensions"`
+		MaxDurationSeconds int     `json:"max_duration_seconds"`
+	} `json:"live_photos"`
 }
 
 // DefaultConfig returns a configuration with default values
@@ -122,6 +131,14 @@ func DefaultConfig() *Config {
 	config.Processing.HashChunkSize = 64 * 1024 // 64KB
 	config.Processing.EnableImageExports = true // Enabled by default
 	config.Processing.JPEGQuality = 85 // Reduced from 90 for faster encoding
+	config.Processing.ShortVideoThreshold = 30 // Videos under 30 seconds go to Short Videos folder
+	
+	// Default Live Photos settings
+	config.LivePhotos.Enabled = true
+	config.LivePhotos.IPhonePatterns = []string{"IMG_", "LIVE_", "_LIVE"}
+	config.LivePhotos.SamsungPatterns = []string{"MOTION_", "_MOTION", "MVIMG_"}
+	config.LivePhotos.Extensions = []string{".mov", ".mp4", ".jpg", ".jpeg", ".heic"}
+	config.LivePhotos.MaxDurationSeconds = 10 // Live Photos are typically 3-5 seconds, allow up to 10
 	
 	return config
 }
